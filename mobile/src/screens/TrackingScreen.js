@@ -1,17 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Animated, Platform } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native';
+import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 import socket from '../services/socket';
 import api from '../services/api';
-
-// Conditional import for MapView to prevent web bundling issues
-let MapView, Marker, Polygon, PROVIDER_GOOGLE;
-if (Platform.OS !== 'web') {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default;
-    Marker = Maps.Marker;
-    Polygon = Maps.Polygon;
-    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
-}
 
 export default function TrackingScreen({ route, navigation }) {
     const { task } = route.params;
@@ -47,29 +38,8 @@ export default function TrackingScreen({ route, navigation }) {
         }
     };
 
-    if (Platform.OS === 'web') {
-        return (
-            <View style={styles.container}>
-                <View style={styles.webFallback}>
-                    <Text style={styles.webFallbackText}>📍 Live Tracking</Text>
-                    <Text style={styles.statusText}>{task.status === 'InTransit' ? '🚗 On the way' : 'Waiting for server...'}</Text>
-                    <Text style={styles.webInfo}>Maps are best experienced on the mobile app.</Text>
-                    <TouchableOpacity 
-                        style={styles.backButton}
-                        onPress={() => navigation.goBack()}
-                    >
-                        <Text style={styles.backButtonText}>Go Back</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        );
-    }
-
-
-    // Format geoFence coordinates for Polygon
     const formatPolygonCoords = () => {
         if (!campus || !campus.geoFence) return [];
-        // Assuming GeoJSON formatting [[[lng, lat], ...]]
         return campus.geoFence.coordinates[0].map(coord => ({
             latitude: coord[1],
             longitude: coord[0]
@@ -82,7 +52,12 @@ export default function TrackingScreen({ route, navigation }) {
                 ref={mapRef}
                 provider={PROVIDER_GOOGLE}
                 style={styles.map}
-                initialRegion={initialRegion}
+                initialRegion={{
+                    latitude: 28.6139,
+                    longitude: 77.2090,
+                    latitudeDelta: 0.015,
+                    longitudeDelta: 0.015,
+                }}
             >
                 {campus && (
                     <Polygon
@@ -152,10 +127,6 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 20,
         elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
     },
     taskTitle: {
         fontSize: 18,
@@ -179,22 +150,4 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#666',
     },
-    webFallback: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 40,
-        textAlign: 'center',
-    },
-    webFallbackText: {
-        fontSize: 32,
-        marginBottom: 20,
-    },
-    webInfo: {
-        fontSize: 16,
-        color: '#666',
-        textAlign: 'center',
-        marginBottom: 20,
-    },
 });
-
