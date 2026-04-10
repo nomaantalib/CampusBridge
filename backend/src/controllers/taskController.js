@@ -24,7 +24,7 @@ exports.createTask = async (req, res, next) => {
 
         // Emit socket event to the campus room
         const io = req.app.get('io');
-        io.to(req.user.campusId.toString()).emit('newTask', task);
+        io.to(req.user.campusId.toString()).emit('new-task', task);
 
         res.status(201).json({ success: true, data: task });
     } catch (err) {
@@ -84,9 +84,9 @@ exports.placeBid = async (req, res, next) => {
         task.status = 'Negotiating';
         await task.save();
 
-        // Emit socket event for the specific task update
+        // Emit socket event: Notify the requester specifically
         const io = req.app.get('io');
-        io.to(task.campusId.toString()).emit('newBid', { taskId: task._id, bid });
+        io.to(task.requesterId.toString()).emit('new-bid', { taskId: task._id, bid });
 
         res.status(200).json({ success: true, data: task });
     } catch (err) {
@@ -133,14 +133,16 @@ exports.acceptBid = async (req, res, next) => {
         
         await task.save();
 
+        // Emit socket event: Notify the assigned server
         const io = req.app.get('io');
-        io.to(task.campusId.toString()).emit('taskAccepted', { taskId: task._id, serverId: bid.serverId });
+        io.to(task.serverId.toString()).emit('task-accepted', { taskId: task._id, requesterId: task.requesterId });
 
         res.status(200).json({ success: true, data: task });
     } catch (err) {
         next(err);
     }
 };
+
 
 
 // @desc    Update task status (e.g., to InTransit)

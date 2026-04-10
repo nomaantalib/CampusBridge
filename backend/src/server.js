@@ -1,15 +1,18 @@
 const http = require('http');
+const path = require('path');
 const dotenv = require('dotenv');
+
+// Load env vars
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 const app = require('./app');
 const connectDB = require('./config/db');
 const logger = require('./utils/logger');
 const { Server } = require('socket.io');
 
-// Load env vars
-dotenv.config();
-
 // Connect to database
 connectDB();
+
 
 const server = http.createServer(app);
 
@@ -24,15 +27,23 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
     logger.info(`New client connected: ${socket.id}`);
 
+    // Join campus-specific room
     socket.on('joinCampus', (campusId) => {
-        socket.join(campusId);
+        socket.join(campusId.toString());
         logger.info(`Socket ${socket.id} joined campus room: ${campusId}`);
+    });
+
+    // Join user-specific room for direct notifications
+    socket.on('joinUser', (userId) => {
+        socket.join(userId.toString());
+        logger.info(`Socket ${socket.id} joined user room: ${userId}`);
     });
 
     socket.on('disconnect', () => {
         logger.info(`Client disconnected: ${socket.id}`);
     });
 });
+
 
 // Make io accessible globally if needed (or pass to controllers)
 app.set('io', io);
