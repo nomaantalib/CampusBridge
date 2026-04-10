@@ -1,4 +1,13 @@
 const express = require('express');
+const { 
+    createTask, 
+    getTasks, 
+    placeBid, 
+    acceptBid,
+    updateTaskStatus,
+    completeTask
+} = require('../controllers/taskController');
+
 const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -6,12 +15,15 @@ const router = express.Router();
 // All task routes are protected
 router.use(protect);
 
-router.get('/', (req, res) => {
-    res.json({ success: true, message: 'Protected task list' });
-});
+router.route('/')
+    .get(getTasks)
+    .post(authorize('Requester', 'Admin'), createTask);
 
-router.post('/', authorize('Requester', 'Admin'), (req, res) => {
-    res.json({ success: true, message: 'Task created' });
-});
+router.post('/:id/bids', authorize('Server', 'Admin'), placeBid);
+router.post('/:id/accept/:bidId', authorize('Requester', 'Admin'), acceptBid);
+router.patch('/:id/status', authorize('Server', 'Admin'), updateTaskStatus);
+router.post('/:id/complete', authorize('Server', 'Admin'), completeTask);
 
 module.exports = router;
+
+

@@ -13,7 +13,21 @@ const loginSchema = Joi.object({
     password: Joi.string().required(),
 });
 
+const createTaskSchema = Joi.object({
+    category: Joi.string().valid('Printout', 'Food', 'Stationery').required(),
+    description: Joi.string().required(),
+    offeredFare: Joi.number().min(1).required(),
+    expiresAt: Joi.date().greater('now').optional(),
+});
+
+const placeBidSchema = Joi.object({
+    amount: Joi.number().min(1).required(),
+});
+
 module.exports = {
     signupSchema,
     loginSchema,
+    createTaskSchema,
+    placeBidSchema,
 };
+
