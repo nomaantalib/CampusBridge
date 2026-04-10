@@ -109,3 +109,53 @@ exports.login = async (req, res, next) => {
         next(err);
     }
 };
+
+// @desc    Refresh access token
+// @route   POST /api/auth/refresh
+// @access  Public
+exports.refresh = async (req, res, next) => {
+    try {
+        const { refreshToken } = req.body;
+
+        if (!refreshToken) {
+            return res.status(400).json({ success: false, message: 'Refresh token is required' });
+        }
+
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'refresh_secret');
+        const user = await User.findById(decoded.id);
+
+        if (!user) {
+            return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+        }
+
+        // Generate new access token
+        const accessToken = jwt.sign(
+            { id: user._id, role: user.role },
+            process.env.JWT_SECRET || 'secret',
+            { expiresIn: process.env.JWT_EXPIRE || '1h' }
+        );
+
+        res.status(200).json({
+            success: true,
+            accessToken
+        });
+    } catch (err) {
+        return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+    }
+};
+
+// @desc    Get current user profile
+// @route   GET /api/auth/me
+// @access  Private
+exports.getMe = async (req, res, next) => {
+    try {
+        const user = await User.findById(req.user.id);
+        res.status(200).json({
+            success: true,
+            data: user
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+

@@ -15,16 +15,25 @@ export const AuthProvider = ({ children }) => {
     async function loadStorageData() {
         try {
             const authDataSerialized = await AsyncStorage.getItem('user');
-            if (authDataSerialized) {
-                const _user = JSON.parse(authDataSerialized);
-                setUser(_user);
+            const token = await AsyncStorage.getItem('accessToken');
+            
+            if (authDataSerialized && token) {
+                // Verify token with backend
+                try {
+                    const response = await api.get('/auth/me');
+                    setUser(response.data.data);
+                } catch (apiError) {
+                    await logout();
+                }
             }
         } catch (error) {
             console.error('Failed to load auth data from storage');
+            await logout();
         } finally {
             setLoading(false);
         }
     }
+
 
     const login = async (email, password) => {
         try {

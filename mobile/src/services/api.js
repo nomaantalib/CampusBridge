@@ -30,26 +30,29 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        if (error.response.status === 401 && !originalRequest._retry) {
+        if (error.response && error.response.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
             const refreshToken = await AsyncStorage.getItem('refreshToken');
             
             if (refreshToken) {
                 try {
-                    // Note: You might need a specific refresh endpoint on the backend
-                    // For now, we'll just log out or handle it as a failure
-                    // const res = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
-                    // if (res.status === 200) {
-                    //     await AsyncStorage.setItem('accessToken', res.data.accessToken);
-                    //     return api(originalRequest);
-                    // }
+                    const res = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
+                    if (res.status === 200) {
+                        const { accessToken } = res.data;
+                        await AsyncStorage.setItem('accessToken', accessToken);
+                        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+                        return axios(originalRequest);
+                    }
                 } catch (refreshError) {
-                    // Handle refresh failure (e.g., redirect to login)
+                    // Handle refresh failure (e.g., token expired)
+                    await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+                    // You might want to navigate to login or use a logout event here
                 }
             }
         }
         return Promise.reject(error);
     }
 );
+
 
 export default api;
