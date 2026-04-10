@@ -100,7 +100,10 @@ export default function BiddingScreen({ route, navigation }) {
                     onPress: async (otp) => {
                         setIsSubmitting(true);
                         try {
-                            const response = await api.post(`/tasks/${task._id}/complete`, { otp });
+                            const response = await api.post('/tasks/verify-otp', { 
+                                taskId: task._id,
+                                otp 
+                            });
                             if (response.data.success) {
                                 setTask(response.data.data);
                                 locationService.stopTracking();
@@ -117,6 +120,36 @@ export default function BiddingScreen({ route, navigation }) {
             'plain-text'
         );
     };
+
+    const handleCancelTask = async () => {
+        Alert.alert(
+            'Cancel Task',
+            'Are you sure you want to cancel? If the task was already accepted, your funds will be refunded to your wallet.',
+            [
+                { text: 'Keep Task', style: 'cancel' },
+                {
+                    text: 'Cancel Task',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setIsSubmitting(true);
+                        try {
+                            const response = await api.post(`/tasks/${task._id}/cancel`);
+                            if (response.data.success) {
+                                setTask(response.data.data);
+                                Alert.alert('Cancelled', 'Task has been cancelled and funds refunded if applicable.');
+                                navigation.goBack();
+                            }
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to cancel task');
+                        } finally {
+                            setIsSubmitting(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
 
     const isServer = user?.role === 'Server';
 
@@ -150,7 +183,17 @@ export default function BiddingScreen({ route, navigation }) {
                         <Text style={styles.trackingButtonText}>📍 View Live Tracking</Text>
                     </TouchableOpacity>
                 )}
+
+                {isRequester && (task.status === 'Open' || task.status === 'Negotiating' || task.status === 'Accepted' || task.status === 'InTransit') && (
+                    <TouchableOpacity 
+                        style={styles.cancelButton}
+                        onPress={handleCancelTask}
+                    >
+                        <Text style={styles.cancelButtonText}>Cancel Task</Text>
+                    </TouchableOpacity>
+                )}
             </View>
+
 
             {isAssignedServer && (task.status === 'Accepted' || task.status === 'InTransit') && (
                 <View style={styles.actionSection}>
@@ -337,7 +380,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     inputSection: {
-
         padding: 16,
         backgroundColor: '#fff',
         marginHorizontal: 16,
@@ -417,7 +459,21 @@ const styles = StyleSheet.create({
         color: '#999',
         marginTop: 20,
     },
+    cancelButton: {
+        backgroundColor: '#FFEBEE',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        marginTop: 10,
+        borderWidth: 1,
+        borderColor: '#FFCDD2',
+    },
+    cancelButtonText: {
+        color: '#D32F2F',
+        fontWeight: 'bold',
+    },
 });
+
 
 
 

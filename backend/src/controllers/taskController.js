@@ -183,15 +183,20 @@ exports.updateTaskStatus = async (req, res, next) => {
 };
 
 // @desc    Complete task with OTP
-// @route   POST /api/tasks/:id/complete
+// @route   POST /api/tasks/verify-otp
 // @access  Private (Server)
-exports.completeTask = async (req, res, next) => {
+exports.verifyOtp = async (req, res, next) => {
     try {
-        const { otp } = req.body;
-        let task = await Task.findById(req.params.id);
+        const { taskId, otp } = req.body;
+        let task = await Task.findById(taskId);
 
         if (!task) {
             return res.status(404).json({ success: false, message: 'Task not found' });
+        }
+
+        // Idempotency: If already completed, just return success
+        if (task.status === 'Completed') {
+            return res.status(200).json({ success: true, data: task });
         }
 
         if (task.serverId.toString() !== req.user.id) {
@@ -202,7 +207,7 @@ exports.completeTask = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Invalid OTP' });
         }
 
-        // Phase 4: Release payment to Server
+        // Release payment to Server (20% commission inside service)
         try {
             await paymentService.releasePayment(task.requesterId, task.serverId, task._id, task.finalFare);
         } catch (paymentErr) {
@@ -220,3 +225,44 @@ exports.completeTask = async (req, res, next) => {
         next(err);
     }
 };
+
+// @desc    Cancel task (refund if escrow exists)
+// @route   POST /api/tasks/:id/cancel
+// @access  Private (Requester/Admin)
+exports.cancelTask = async (req, res, next) => {
+    try {
+        let task = await Task.findById(req.params.id);
+
+        if (!task) {
+            return res.status(404).json({ success: false, message: 'Task not found' });
+        }
+
+        if (task.requesterId.toString() !== req.user.id && req.user.role !== 'Admin') {
+            return res.status(401).json({ success: false, message: 'Not authorized' });
+        }
+
+        if (task.status === 'Completed' || task.status === 'Cancelled') {
+            return res.status(400).json({ success: false, message: 'Cannot cancel task in this status' });
+        }
+
+        // If task was accepted/in-transit, refund escrow
+        if (['Accepted', 'InTransit'].includes(task.status)) {
+            try {
+                await paymentService.refundEscrow(task.requesterId, task._id);
+            } catch (refundErr) {
+                return res.status(500).json({ success: false, message: 'Refund failed: ' + refundErr.message });
+            }
+        }
+
+        task.status = 'Cancelled';
+        await task.save();
+
+        const io = req.app.get('io');
+        io.to(task.campusId.toString()).emit('taskStatusUpdated', { taskId: task._id, status: 'Cancelled' });
+
+        res.status(200).json({ success: true, data: task });
+    } catch (err) {
+        next(err);
+    }
+};
+
