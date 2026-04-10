@@ -11,8 +11,12 @@ exports.createTask = async (req, res, next) => {
             return res.status(400).json({ success: false, message: error.details[0].message });
         }
 
+        // Set default expiration to 2 hours if not provided
+        const expiresAt = req.body.expiresAt || new Date(Date.now() + 2 * 60 * 60 * 1000);
+
         const task = await Task.create({
             ...req.body,
+            expiresAt,
             requesterId: req.user.id,
             campusId: req.user.campusId,
             status: 'Open'
@@ -45,7 +49,7 @@ exports.getTasks = async (req, res, next) => {
 };
 
 // @desc    Place a bid on a task
-// @route   POST /api/tasks/:id/bids
+// @route   POST /api/tasks/bid
 // @access  Private (Server)
 exports.placeBid = async (req, res, next) => {
     try {
@@ -54,7 +58,8 @@ exports.placeBid = async (req, res, next) => {
             return res.status(400).json({ success: false, message: error.details[0].message });
         }
 
-        let task = await Task.findById(req.params.id);
+        const { taskId, amount } = req.body;
+        let task = await Task.findById(taskId);
 
         if (!task) {
             return res.status(404).json({ success: false, message: 'Task not found' });
@@ -64,9 +69,14 @@ exports.placeBid = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Task is no longer accepting bids' });
         }
 
+        // Only servers can bid (enforced by middleware, but good to check)
+        if (req.user.role !== 'Server' && req.user.role !== 'Admin') {
+            return res.status(403).json({ success: false, message: 'Only servers can place bids' });
+        }
+
         const bid = {
             serverId: req.user.id,
-            amount: req.body.amount,
+            amount,
             timestamp: new Date()
         };
 
@@ -85,21 +95,31 @@ exports.placeBid = async (req, res, next) => {
 };
 
 // @desc    Accept a bid
-// @route   POST /api/tasks/:id/accept/:bidId
+// @route   POST /api/tasks/accept
 // @access  Private (Requester)
 exports.acceptBid = async (req, res, next) => {
     try {
-        let task = await Task.findById(req.params.id);
+        const { error } = acceptBidSchema.validate(req.body);
+        if (error) {
+            return res.status(400).json({ success: false, message: error.details[0].message });
+        }
+
+        const { taskId, bidId } = req.body;
+        let task = await Task.findById(taskId);
 
         if (!task) {
             return res.status(404).json({ success: false, message: 'Task not found' });
         }
 
-        if (task.requesterId.toString() !== req.user.id) {
+        if (task.requesterId.toString() !== req.user.id && req.user.role !== 'Admin') {
             return res.status(401).json({ success: false, message: 'Not authorized to accept bids for this task' });
         }
 
-        const bid = task.bids.id(req.params.bidId);
+        if (task.serverId) {
+            return res.status(400).json({ success: false, message: 'This task already has an assigned server' });
+        }
+
+        const bid = task.bids.id(bidId);
         if (!bid) {
             return res.status(404).json({ success: false, message: 'Bid not found' });
         }
@@ -121,6 +141,7 @@ exports.acceptBid = async (req, res, next) => {
         next(err);
     }
 };
+
 
 // @desc    Update task status (e.g., to InTransit)
 // @route   PATCH /api/tasks/:id/status

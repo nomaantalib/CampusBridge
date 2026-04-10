@@ -19,10 +19,11 @@ router.route('/')
     .get(getTasks)
     .post(authorize('Requester', 'Admin'), createTask);
 
-router.post('/:id/bids', authorize('Server', 'Admin'), placeBid);
-router.post('/:id/accept/:bidId', authorize('Requester', 'Admin'), acceptBid);
+router.post('/bid', authorize('Server', 'Admin'), placeBid);
+router.post('/accept', authorize('Requester', 'Admin'), acceptBid);
 router.patch('/:id/status', authorize('Server', 'Admin'), updateTaskStatus);
 router.post('/:id/complete', authorize('Server', 'Admin'), completeTask);
+
 
 module.exports = router;
 
