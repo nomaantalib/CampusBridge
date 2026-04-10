@@ -108,10 +108,11 @@ export default function HomeScreen({ navigation }) {
 
             <TouchableOpacity 
                 style={styles.fab}
-                onPress={() => navigation.navigate('Placeholder', { name: 'Create Task' })}
+                onPress={() => navigation.navigate('CreateTask')}
             >
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
+
         </View>
     );
 }
