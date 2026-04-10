@@ -39,28 +39,40 @@ exports.signup = async (req, res, next) => {
         }
 
         // Create user
-        const user = await User.create({
-            name,
-            email,
-            password,
-            phoneNumber,
-            collegeName,
-            campusId: req.body.campusId || '65f1a2b3c4d5e6f7a8b9c0d1'
-        });
+        try {
+            const user = await User.create({
+                name,
+                email,
+                password,
+                phoneNumber,
+                collegeName,
+                campusId: req.body.campusId || '65f1a2b3c4d5e6f7a8b9c0d1'
+            });
 
-        const { accessToken, refreshToken } = generateTokens(user);
+            const { accessToken, refreshToken } = generateTokens(user);
 
-        res.status(201).json({
-            success: true,
-            accessToken,
-            refreshToken,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role
+            res.status(201).json({
+                success: true,
+                accessToken,
+                refreshToken,
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role
+                }
+            });
+        } catch (err) {
+            if (err.code === 11000) {
+                const field = Object.keys(err.keyValue)[0];
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `${field} already exists. Please use another.` 
+                });
             }
-        });
+            throw err;
+        }
+
     } catch (err) {
         next(err);
     }
