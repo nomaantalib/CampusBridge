@@ -23,16 +23,27 @@ const userSchema = new mongoose.Schema({
         minlength: 6,
         select: false,
     },
+    phoneNumber: {
+
+        type: String,
+        required: [true, 'Please add a phone number'],
+        unique: true,
+    },
+    collegeName: {
+        type: String,
+        required: [true, 'Please add your college name'],
+    },
     role: {
         type: String,
-        enum: ['Requester', 'Server', 'Admin'],
-        default: 'Requester',
+        enum: ['User', 'Admin'],
+        default: 'User',
     },
     campusId: {
         type: mongoose.Schema.ObjectId,
         ref: 'Campus',
-        required: true,
+        required: false, // Optional for initial signups
     },
+
     walletBalance: {
         type: Number,
         default: 0,

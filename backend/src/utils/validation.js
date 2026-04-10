@@ -6,9 +6,12 @@ const signupSchema = Joi.object({
     name: Joi.string().required().trim(),
     email: Joi.string().email().required().lowercase(),
     password: Joi.string().min(6).required(),
-    role: Joi.string().valid('Requester', 'Server', 'Admin').default('Requester'),
-    campusId: Joi.string().required(), // MongoDB ObjectId string
+    phoneNumber: Joi.string().required(),
+    collegeName: Joi.string().required(),
+    role: Joi.string().valid('User', 'Admin').default('User'),
+    campusId: Joi.string().optional(), // MongoDB ObjectId string
 });
+
 
 const loginSchema = Joi.object({
     email: Joi.string().email().required().lowercase(),

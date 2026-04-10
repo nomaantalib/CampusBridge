@@ -30,7 +30,7 @@ exports.signup = async (req, res, next) => {
             return res.status(400).json({ success: false, message: error.details[0].message });
         }
 
-        const { name, email, password, role, campusId } = req.body;
+        const { name, email, password, phoneNumber, collegeName } = req.body;
 
         // Check if user exists
         const userExists = await User.findOne({ email });
@@ -43,8 +43,9 @@ exports.signup = async (req, res, next) => {
             name,
             email,
             password,
-            role,
-            campusId
+            phoneNumber,
+            collegeName,
+            campusId: req.body.campusId || '65f1a2b3c4d5e6f7a8b9c0d1'
         });
 
         const { accessToken, refreshToken } = generateTokens(user);
