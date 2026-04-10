@@ -25,25 +25,36 @@ export default function RegisterScreen({ navigation }) {
     const [isLoading, setIsLoading] = useState(false);
     const { signup } = useAuth();
 
-    // Animations
+    // Animations Array
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const slideAnim = useRef(new Animated.Value(30)).current;
+    const inputAnims = useRef([
+        new Animated.Value(0), // Name
+        new Animated.Value(0), // Email
+        new Animated.Value(0), // Phone
+        new Animated.Value(0), // College
+        new Animated.Value(0), // Password
+        new Animated.Value(0), // Button
+    ]).current;
 
     useEffect(() => {
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+        }).start();
+
+        const animations = inputAnims.map((anim, i) => 
+            Animated.spring(anim, {
                 toValue: 1,
-                duration: 800,
-                useNativeDriver: true,
-            }),
-            Animated.spring(slideAnim, {
-                toValue: 0,
-                tension: 20,
-                friction: 7,
+                tension: 40,
+                friction: 8,
+                delay: i * 100 + 200,
                 useNativeDriver: true,
             })
-        ]).start();
+        );
+        Animated.stagger(100, animations).start();
     }, []);
+
 
     const handleRegister = async () => {
         if (!name || !email || !phone || !college || !password) {
@@ -52,23 +63,62 @@ export default function RegisterScreen({ navigation }) {
         }
 
         setIsLoading(true);
-        const result = await signup({ 
-            name, 
-            email, 
-            password, 
-            phoneNumber: phone, 
-            collegeName: college 
-        });
-        setIsLoading(false);
+        try {
+            const result = await signup({ 
+                name, 
+                email, 
+                password, 
+                phoneNumber: phone, 
+                collegeName: college 
+            });
+            setIsLoading(false);
 
-        if (result.success) {
-            Alert.alert('Success!', 'Your account has been created.', [
-                { text: 'Login Now', onPress: () => navigation.navigate('Login') }
-            ]);
-        } else {
-            Alert.alert('Registration Failed', result.message);
+            if (result.success) {
+                Alert.alert('Success!', 'Your account has been created.', [
+                    { text: 'Login Now', onPress: () => navigation.navigate('Login') }
+                ]);
+            } else {
+                Alert.alert('Registration Failed', result.message);
+            }
+        } catch (err) {
+            setIsLoading(false);
+            Alert.alert('Error', err.response?.data?.message || 'Something went wrong');
         }
     };
+
+    const renderInput = (label, placeholder, value, setter, config = {}, index) => (
+        <Animated.View style={[
+            styles.inputGroup, 
+            { 
+                opacity: inputAnims[index],
+                transform: [{ translateY: inputAnims[index].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0]
+                })}]
+            }
+        ]}>
+            <Text style={styles.label}>{label}</Text>
+            <View style={[styles.inputWrapper, config.secureTextEntry && styles.passwordWrapper]}>
+                <TextInput
+                    style={[styles.input, config.secureTextEntry && { flex: 1, marginBottom: 0 }]}
+                    placeholder={placeholder}
+                    placeholderTextColor="rgba(148, 163, 184, 0.4)"
+                    value={value}
+                    onChangeText={setter}
+                    editable={!isLoading}
+                    {...config}
+                />
+                {config.secureTextEntry && (
+                    <TouchableOpacity 
+                        style={styles.toggleBtn}
+                        onPress={() => setShowPassword(!showPassword)}
+                    >
+                        <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        </Animated.View>
+    );
 
     return (
         <KeyboardAvoidingView 
@@ -81,99 +131,36 @@ export default function RegisterScreen({ navigation }) {
             <View style={styles.bgCircle2} />
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <Animated.View style={[
-                    styles.inner, 
-                    { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
-                ]}>
+                <View style={styles.inner}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>Create Account</Text>
-                        <Text style={styles.subtitle}>Join your campus help network</Text>
+                        <Animated.Text style={[styles.title, { opacity: fadeAnim }]}>Create Account</Animated.Text>
+                        <Animated.Text style={[styles.subtitle, { opacity: fadeAnim }]}>Join your campus help network</Animated.Text>
                     </View>
 
                     <View style={styles.form}>
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Full Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="John Doe"
-                                placeholderTextColor="#999"
-                                value={name}
-                                onChangeText={setName}
-                                editable={!isLoading}
-                            />
-                        </View>
+                        {renderInput('Full Name', 'John Doe', name, setName, {}, 0)}
+                        {renderInput('Email Address', 'john@college.edu', email, setEmail, { keyboardType: 'email-address', autoCapitalize: 'none' }, 1)}
+                        {renderInput('Phone Number', '+91 9876543210', phone, setPhone, { keyboardType: 'phone-pad' }, 2)}
+                        {renderInput('College Name', 'e.g. IIT Delhi', college, setCollege, {}, 3)}
+                        {renderInput('Password', 'Min. 6 characters', password, setPassword, { secureTextEntry: !showPassword }, 4)}
 
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Email Address</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="john@college.edu"
-                                placeholderTextColor="#999"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                editable={!isLoading}
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Phone Number</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="+91 9876543210"
-                                placeholderTextColor="#999"
-                                value={phone}
-                                onChangeText={setPhone}
-                                keyboardType="phone-pad"
-                                editable={!isLoading}
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>College Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="e.g. IIT Delhi"
-                                placeholderTextColor="#999"
-                                value={college}
-                                onChangeText={setCollege}
-                                editable={!isLoading}
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Password</Text>
-                            <View style={styles.passwordWrapper}>
-                                <TextInput
-                                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                                    placeholder="Min. 6 characters"
-                                    placeholderTextColor="#999"
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secureTextEntry={!showPassword}
-                                    editable={!isLoading}
-                                />
-                                <TouchableOpacity 
-                                    style={styles.toggleBtn}
-                                    onPress={() => setShowPassword(!showPassword)}
-                                >
-                                    <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        <TouchableOpacity 
-                            style={[styles.button, isLoading && styles.disabledButton]} 
-                            onPress={handleRegister}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="#fff" />
-                            ) : (
-                                <Text style={styles.buttonText}>Sign Up</Text>
-                            )}
-                        </TouchableOpacity>
+                        <Animated.View style={{ 
+                            opacity: inputAnims[5],
+                            transform: [{ scale: inputAnims[5] }]
+                        }}>
+                            <TouchableOpacity 
+                                style={[styles.button, isLoading && styles.disabledButton]} 
+                                onPress={handleRegister}
+                                disabled={isLoading}
+                                activeOpacity={0.8}
+                            >
+                                {isLoading ? (
+                                    <ActivityIndicator color="#fff" />
+                                ) : (
+                                    <Text style={styles.buttonText}>Sign Up</Text>
+                                )}
+                            </TouchableOpacity>
+                        </Animated.View>
 
                         <TouchableOpacity 
                             onPress={() => navigation.navigate('Login')}
@@ -185,11 +172,12 @@ export default function RegisterScreen({ navigation }) {
                             </Text>
                         </TouchableOpacity>
                     </View>
-                </Animated.View>
+                </View>
             </ScrollView>
         </KeyboardAvoidingView>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {
@@ -253,16 +241,20 @@ const styles = StyleSheet.create({
         marginBottom: 6,
         marginLeft: 4,
     },
-    input: {
-        height: 50,
+    inputWrapper: {
+
         backgroundColor: '#0F172A',
         borderRadius: 12,
-        paddingHorizontal: 16,
-        color: '#F8FAFC',
-        fontSize: 15,
         borderWidth: 1,
         borderColor: '#334155',
     },
+    input: {
+        height: 50,
+        paddingHorizontal: 16,
+        color: '#F8FAFC',
+        fontSize: 15,
+    },
+
     passwordWrapper: {
         flexDirection: 'row',
         alignItems: 'center',

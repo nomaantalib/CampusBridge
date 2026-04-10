@@ -27,7 +27,6 @@ const errorMiddleware = (err, req, res, next) => {
         error = new Error(message);
         error.statusCode = 400;
     }
-
     // JWT errors
     if (err.name === 'JsonWebTokenError') {
         const message = 'Invalid token. Please log in again.';
@@ -41,10 +40,17 @@ const errorMiddleware = (err, req, res, next) => {
         error.statusCode = 401;
     }
 
+    // Mongoose validation error
+    if (err.name === 'ValidationError') {
+        const message = Object.values(err.errors).map(val => val.message).join(', ');
+        error = new Error(message);
+        error.statusCode = 400;
+    }
 
     res.status(error.statusCode || 500).json({
         success: false,
-        error: error.message || 'Server Error',
+        message: error.message || 'Server Error',
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
 };
 
