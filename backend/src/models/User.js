@@ -5,11 +5,13 @@ const userSchema = new mongoose.Schema({
     name: {
         type: String,
         required: [true, 'Please add a name'],
+        trim: true,
     },
     email: {
         type: String,
         required: [true, 'Please add an email'],
         unique: true,
+        lowercase: true,
         match: [
             /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
             'Please add a valid email',
@@ -23,8 +25,8 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['requester', 'server', 'admin'],
-        default: 'requester',
+        enum: ['Requester', 'Server', 'Admin'],
+        default: 'Requester',
     },
     campusId: {
         type: mongoose.Schema.ObjectId,
@@ -37,17 +39,24 @@ const userSchema = new mongoose.Schema({
     },
     rating: {
         type: Number,
-        default: 5.0,
+        default: 0,
+    },
+    isVerified: {
+        type: Boolean,
+        default: false,
     },
     isSuspended: {
         type: Boolean,
         default: false,
     },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
+}, {
+    timestamps: true,
 });
+
+// Indexes for performance
+userSchema.index({ email: 1 });
+userSchema.index({ campusId: 1 });
+userSchema.index({ role: 1 });
 
 // Encrypt password using bcrypt
 userSchema.pre('save', async function (next) {
@@ -64,3 +73,4 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 };
 
 module.exports = mongoose.model('User', userSchema);
+

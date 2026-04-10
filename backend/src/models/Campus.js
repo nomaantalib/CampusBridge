@@ -5,27 +5,33 @@ const campusSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please add a campus name'],
         unique: true,
+        trim: true,
     },
-    location: {
+    geoFence: {
         type: {
             type: String,
-            enum: ['Point'],
-            default: 'Point',
+            enum: ['Polygon'],
+            required: true,
         },
         coordinates: {
-            type: [Number],
-            index: '2dsphere',
+            type: [[[Number]]], // Array of arrays of arrays of numbers
+            required: true,
         },
     },
-    address: String,
+    commissionRate: {
+        type: Number,
+        default: 20,
+    },
     isActive: {
         type: Boolean,
         default: true,
     },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
+}, {
+    timestamps: true,
 });
 
+// Index for geo-spatial queries
+campusSchema.index({ geoFence: '2dsphere' });
+
 module.exports = mongoose.model('Campus', campusSchema);
+

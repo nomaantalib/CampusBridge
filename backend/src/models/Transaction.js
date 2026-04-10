@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema({
-    user: {
+    userId: {
         type: mongoose.Schema.ObjectId,
         ref: 'User',
         required: true,
@@ -9,27 +9,30 @@ const transactionSchema = new mongoose.Schema({
     taskId: {
         type: mongoose.Schema.ObjectId,
         ref: 'Task',
+        required: true,
+    },
+    type: {
+        type: String,
+        enum: ['credit', 'debit'],
+        required: true,
     },
     amount: {
         type: Number,
         required: true,
     },
-    type: {
-        type: String,
-        enum: ['credit', 'debit', 'escrow_hold', 'escrow_release', 'refund'],
-        required: true,
-    },
     status: {
         type: String,
-        enum: ['pending', 'completed', 'failed'],
-        default: 'completed',
+        enum: ['pending', 'success', 'failed'],
+        default: 'pending',
     },
-    description: String,
-    metadata: Object,
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
+}, {
+    timestamps: true,
 });
 
+// Indexes for performance
+transactionSchema.index({ userId: 1 });
+transactionSchema.index({ taskId: 1 });
+transactionSchema.index({ status: 1 });
+
 module.exports = mongoose.model('Transaction', transactionSchema);
+
