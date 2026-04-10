@@ -21,13 +21,16 @@ export default function LoginScreen({ navigation }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [loginError, setLoginError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { login } = useAuth();
+
 
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
     const logoScale = useRef(new Animated.Value(0.8)).current;
+    const errorShake = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         Animated.parallel([
@@ -51,18 +54,30 @@ export default function LoginScreen({ navigation }) {
         ]).start();
     }, []);
 
+    const shake = () => {
+        Animated.sequence([
+            Animated.timing(errorShake, { toValue: 10, duration: 100, useNativeDriver: true }),
+            Animated.timing(errorShake, { toValue: -10, duration: 100, useNativeDriver: true }),
+            Animated.timing(errorShake, { toValue: 10, duration: 100, useNativeDriver: true }),
+            Animated.timing(errorShake, { toValue: 0, duration: 100, useNativeDriver: true })
+        ]).start();
+    };
+
     const handleLogin = async () => {
         if (!email || !password) {
-            Alert.alert('Missing Fields', 'Please enter both email and password.');
+            setLoginError('Please enter both email and password.');
+            shake();
             return;
         }
 
+        setLoginError('');
         setIsLoading(true);
         const result = await login(email, password);
         setIsLoading(false);
 
         if (!result.success) {
-            Alert.alert('Login Error', result.message);
+            setLoginError(result.message || 'Invalid email or password');
+            shake();
         }
     };
 
@@ -79,7 +94,10 @@ export default function LoginScreen({ navigation }) {
 
             <Animated.View style={[
                 styles.inner, 
-                { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+                { 
+                    opacity: fadeAnim, 
+                    transform: [{ translateY: slideAnim }, { translateX: errorShake }] 
+                }
             ]}>
                 <Animated.View style={[styles.header, { transform: [{ scale: logoScale }] }]}>
                     <View style={styles.logoIcon}>
@@ -90,14 +108,20 @@ export default function LoginScreen({ navigation }) {
                 </Animated.View>
 
                 <View style={styles.form}>
+                    {loginError ? (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorText}>{loginError}</Text>
+                        </View>
+                    ) : null}
+
                     <View style={styles.inputContainer}>
                         <Text style={styles.label}>Email Address</Text>
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, loginError && styles.inputError]}
                             placeholder="your@email.com"
                             placeholderTextColor="#999"
                             value={email}
-                            onChangeText={setEmail}
+                            onChangeText={(t) => { setEmail(t); setLoginError(''); }}
                             keyboardType="email-address"
                             autoCapitalize="none"
                             editable={!isLoading}
@@ -106,13 +130,13 @@ export default function LoginScreen({ navigation }) {
 
                     <View style={styles.inputContainer}>
                         <Text style={styles.label}>Password</Text>
-                        <View style={styles.passwordWrapper}>
+                        <View style={[styles.passwordWrapper, loginError && styles.inputError]}>
                             <TextInput
-                                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                                style={[styles.input, { flex: 1, marginBottom: 0, borderWeight: 0, borderWidth: 0 }]}
                                 placeholder="••••••••"
                                 placeholderTextColor="#999"
                                 value={password}
-                                onChangeText={setPassword}
+                                onChangeText={(t) => { setPassword(t); setLoginError(''); }}
                                 secureTextEntry={!showPassword}
                                 editable={!isLoading}
                             />
@@ -123,6 +147,12 @@ export default function LoginScreen({ navigation }) {
                                 <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
                             </TouchableOpacity>
                         </View>
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate('ForgotPassword')}
+                            style={styles.forgotBtn}
+                        >
+                            <Text style={[styles.forgotText, loginError && styles.highlightText]}>Forgot Password?</Text>
+                        </TouchableOpacity>
                     </View>
 
                     <TouchableOpacity 
@@ -143,7 +173,7 @@ export default function LoginScreen({ navigation }) {
                         disabled={isLoading}
                     >
                         <Text style={styles.linkText}>
-                            Don't have an account? <Text style={styles.linkBold}>Sign Up</Text>
+                            Don't have an account? <Text style={[styles.linkBold, loginError && styles.highlightText]}>Sign Up</Text>
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -155,7 +185,7 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0F172A', // Dark premium background
+        backgroundColor: '#0F172A',
     },
     bgCircle1: {
         position: 'absolute',
@@ -182,7 +212,7 @@ const styles = StyleSheet.create({
     },
     header: {
         alignItems: 'center',
-        marginBottom: 50,
+        marginBottom: 40,
     },
     logoIcon: {
         width: 80,
@@ -221,7 +251,20 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
-        backdropFilter: 'blur(10px)', // For web
+    },
+    errorContainer: {
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.3)',
+        marginBottom: 20,
+    },
+    errorText: {
+        color: '#EF4444',
+        fontSize: 14,
+        fontWeight: '600',
+        textAlign: 'center',
     },
     inputContainer: {
         marginBottom: 20,
@@ -243,6 +286,9 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#334155',
     },
+    inputError: {
+        borderColor: '#EF4444',
+    },
     passwordWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -258,6 +304,19 @@ const styles = StyleSheet.create({
         color: '#3B82F6',
         fontWeight: '600',
         fontSize: 14,
+    },
+    forgotBtn: {
+        alignSelf: 'flex-end',
+        marginTop: 8,
+        marginRight: 4,
+    },
+    forgotText: {
+        color: '#94A3B8',
+        fontSize: 14,
+    },
+    highlightText: {
+        color: '#F97316', // Highlight in orange/amber
+        fontWeight: 'bold',
     },
     button: {
         backgroundColor: '#2563EB',
@@ -293,3 +352,4 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
 });
+
