@@ -1,5 +1,6 @@
 const Task = require('../models/Task');
-const { createTaskSchema, placeBidSchema } = require('../utils/validation');
+const { createTaskSchema, placeBidSchema, acceptBidSchema } = require('../utils/validation');
+const paymentService = require('../services/paymentService');
 
 // @desc    Create a new task
 // @route   POST /api/tasks
@@ -112,11 +113,11 @@ exports.acceptBid = async (req, res, next) => {
         }
 
         if (task.requesterId.toString() !== req.user.id && req.user.role !== 'Admin') {
-            return res.status(401).json({ success: false, message: 'Not authorized to accept bids for this task' });
+            return res.status(401).json({ success: false, message: 'Not authorized' });
         }
 
         if (task.serverId) {
-            return res.status(400).json({ success: false, message: 'This task already has an assigned server' });
+            return res.status(400).json({ success: false, message: 'Server already assigned' });
         }
 
         const bid = task.bids.id(bidId);
@@ -124,16 +125,20 @@ exports.acceptBid = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Bid not found' });
         }
 
+        // Phase 4: Hold funds in escrow
+        try {
+            await paymentService.holdEscrow(req.user.id, task._id, bid.amount);
+        } catch (paymentErr) {
+            return res.status(400).json({ success: false, message: paymentErr.message });
+        }
+
         task.serverId = bid.serverId;
         task.finalFare = bid.amount;
         task.status = 'Accepted';
-        
-        // Generate simple 4-digit OTP
         task.otpCode = Math.floor(1000 + Math.random() * 9000).toString();
         
         await task.save();
 
-        // Emit socket event: Notify the assigned server
         const io = req.app.get('io');
         io.to(task.serverId.toString()).emit('task-accepted', { taskId: task._id, requesterId: task.requesterId });
 
@@ -142,8 +147,6 @@ exports.acceptBid = async (req, res, next) => {
         next(err);
     }
 };
-
-
 
 // @desc    Update task status (e.g., to InTransit)
 // @route   PATCH /api/tasks/:id/status
@@ -185,7 +188,7 @@ exports.updateTaskStatus = async (req, res, next) => {
 exports.completeTask = async (req, res, next) => {
     try {
         const { otp } = req.body;
-        let task = await Task.findById(req.params.id).select('+otpCode');
+        let task = await Task.findById(req.params.id);
 
         if (!task) {
             return res.status(404).json({ success: false, message: 'Task not found' });
@@ -199,10 +202,15 @@ exports.completeTask = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Invalid OTP' });
         }
 
+        // Phase 4: Release payment to Server
+        try {
+            await paymentService.releasePayment(task.requesterId, task.serverId, task._id, task.finalFare);
+        } catch (paymentErr) {
+            return res.status(500).json({ success: false, message: 'Payment release failed: ' + paymentErr.message });
+        }
+
         task.status = 'Completed';
         await task.save();
-
-        // TODO: Handle payment release logic here (Phase 4)
 
         const io = req.app.get('io');
         io.to(task.campusId.toString()).emit('taskCompleted', { taskId: task._id });
@@ -212,4 +220,3 @@ exports.completeTask = async (req, res, next) => {
         next(err);
     }
 };
-

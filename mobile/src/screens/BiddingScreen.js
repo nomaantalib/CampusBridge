@@ -89,7 +89,37 @@ export default function BiddingScreen({ route, navigation }) {
         }
     };
 
+    const handleCompleteTask = async () => {
+        Alert.prompt(
+            'Complete Task',
+            'Enter the 4-digit OTP provided by the requester:',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Confirm',
+                    onPress: async (otp) => {
+                        setIsSubmitting(true);
+                        try {
+                            const response = await api.post(`/tasks/${task._id}/complete`, { otp });
+                            if (response.data.success) {
+                                setTask(response.data.data);
+                                locationService.stopTracking();
+                                Alert.alert('Payment Released', 'Task completed and funds added to your wallet!');
+                            }
+                        } catch (error) {
+                            Alert.alert('Error', error.response?.data?.message || 'Completion failed');
+                        } finally {
+                            setIsSubmitting(false);
+                        }
+                    }
+                }
+            ],
+            'plain-text'
+        );
+    };
+
     const isServer = user?.role === 'Server';
+
     const isAssignedServer = user?.id === task.serverId;
     const isRequester = user?.id === task.requesterId;
 
@@ -105,6 +135,13 @@ export default function BiddingScreen({ route, navigation }) {
                     <Text style={styles.statusText}>{task.status}</Text>
                 </View>
 
+                {isRequester && (task.status === 'Accepted' || task.status === 'InTransit') && (
+                    <View style={styles.otpSection}>
+                        <Text style={styles.otpLabel}>Share this OTP with Server upon delivery:</Text>
+                        <Text style={styles.otpCode}>{task.otpCode}</Text>
+                    </View>
+                )}
+
                 {isRequester && task.status === 'InTransit' && (
                     <TouchableOpacity 
                         style={styles.trackingButton}
@@ -115,16 +152,26 @@ export default function BiddingScreen({ route, navigation }) {
                 )}
             </View>
 
-            {isAssignedServer && task.status === 'Accepted' && (
+            {isAssignedServer && (task.status === 'Accepted' || task.status === 'InTransit') && (
                 <View style={styles.actionSection}>
+                    {task.status === 'Accepted' && (
+                        <TouchableOpacity 
+                            style={styles.startDeliveryButton}
+                            onPress={() => handleUpdateStatus('InTransit')}
+                        >
+                            <Text style={styles.buttonText}>Start Delivery & Live Tracking</Text>
+                        </TouchableOpacity>
+                    )}
+                    
                     <TouchableOpacity 
-                        style={styles.startDeliveryButton}
-                        onPress={() => handleUpdateStatus('InTransit')}
+                        style={styles.completeButton}
+                        onPress={handleCompleteTask}
                     >
-                        <Text style={styles.buttonText}>Start Delivery & Live Tracking</Text>
+                        <Text style={styles.buttonText}>Complete Task (Require OTP)</Text>
                     </TouchableOpacity>
                 </View>
             )}
+
 
             {isServer && !isAssignedServer && (task.status === 'Open' || task.status === 'Negotiating') ? (
                 <View style={styles.inputSection}>
@@ -247,12 +294,38 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
     },
+    otpSection: {
+        backgroundColor: '#F5F5F5',
+        padding: 16,
+        borderRadius: 12,
+        marginTop: 16,
+        alignItems: 'center',
+    },
+    otpLabel: {
+        fontSize: 12,
+        color: '#666',
+        marginBottom: 8,
+    },
+    otpCode: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#333',
+        letterSpacing: 4,
+    },
     actionSection: {
         paddingHorizontal: 16,
         marginBottom: 16,
     },
     startDeliveryButton: {
         backgroundColor: '#FF9800',
+        paddingVertical: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        elevation: 3,
+        marginBottom: 12,
+    },
+    completeButton: {
+        backgroundColor: '#4CAF50',
         paddingVertical: 16,
         borderRadius: 12,
         alignItems: 'center',
@@ -264,6 +337,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     inputSection: {
+
         padding: 16,
         backgroundColor: '#fff',
         marginHorizontal: 16,
