@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native';
-import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Platform } from 'react-native';
 import socket from '../services/socket';
 import api from '../services/api';
+
+// Conditional import for MapView to prevent web bundling issues
+let MapView, Marker, Polygon, PROVIDER_GOOGLE;
+if (Platform.OS !== 'web') {
+    const Maps = require('react-native-maps');
+    MapView = Maps.default;
+    Marker = Maps.Marker;
+    Polygon = Maps.Polygon;
+    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+}
 
 export default function TrackingScreen({ route, navigation }) {
     const { task } = route.params;
     const [serverLocation, setServerLocation] = useState(null);
     const [campus, setCampus] = useState(null);
-    const animatedLocation = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current; // For future interpolation
     const mapRef = useRef(null);
-
-    // Initial center if no location yet (coordinates from task or campus)
-    const initialRegion = {
-        latitude: 28.6139, // Default to New Delhi or similar
-        longitude: 77.2090,
-        latitudeDelta: 0.015,
-        longitudeDelta: 0.015,
-    };
 
     useEffect(() => {
         fetchCampusData();
@@ -34,10 +34,6 @@ export default function TrackingScreen({ route, navigation }) {
                 setServerLocation(newCoords);
             }
         });
-
-        return () => {
-            // socket.leaveTask(task._id); // If implemented
-        };
     }, []);
 
     const fetchCampusData = async () => {
@@ -50,6 +46,25 @@ export default function TrackingScreen({ route, navigation }) {
             console.error('Failed to fetch campus boundary');
         }
     };
+
+    if (Platform.OS === 'web') {
+        return (
+            <View style={styles.container}>
+                <View style={styles.webFallback}>
+                    <Text style={styles.webFallbackText}>📍 Live Tracking</Text>
+                    <Text style={styles.statusText}>{task.status === 'InTransit' ? '🚗 On the way' : 'Waiting for server...'}</Text>
+                    <Text style={styles.webInfo}>Maps are best experienced on the mobile app.</Text>
+                    <TouchableOpacity 
+                        style={styles.backButton}
+                        onPress={() => navigation.goBack()}
+                    >
+                        <Text style={styles.backButtonText}>Go Back</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+
 
     // Format geoFence coordinates for Polygon
     const formatPolygonCoords = () => {
@@ -164,4 +179,22 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#666',
     },
+    webFallback: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 40,
+        textAlign: 'center',
+    },
+    webFallbackText: {
+        fontSize: 32,
+        marginBottom: 20,
+    },
+    webInfo: {
+        fontSize: 16,
+        color: '#666',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
 });
+
