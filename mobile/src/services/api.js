@@ -28,6 +28,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
+        if (__DEV__) {
+            console.error('[API Error]:', error.response?.status, error.response?.data || error.message);
+        }
+        
         const originalRequest = error.config;
 
         if (error.response && error.response.status === 401 && !originalRequest._retry) {
