@@ -4,6 +4,9 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const errorMiddleware = require('./middleware/error');
+const authRoutes = require('./routes/authRoutes');
+const taskRoutes = require('./routes/taskRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
@@ -20,6 +23,12 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/payments', paymentRoutes);
+
+
 // Basic health check
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -29,3 +38,4 @@ app.get('/health', (req, res) => {
 app.use(errorMiddleware);
 
 module.exports = app;
+
