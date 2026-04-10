@@ -10,12 +10,14 @@ import {
     Alert, 
     ActivityIndicator, 
     Animated, 
+    Easing,
     Dimensions,
-    StatusBar
+    StatusBar,
+    ScrollView
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }) {
     const [email, setEmail] = useState('');
@@ -24,7 +26,6 @@ export default function LoginScreen({ navigation }) {
     const [loginError, setLoginError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { login } = useAuth();
-
 
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -36,19 +37,20 @@ export default function LoginScreen({ navigation }) {
         Animated.parallel([
             Animated.timing(fadeAnim, {
                 toValue: 1,
-                duration: 1000,
+                duration: 1200,
+                easing: Easing.bezier(0.4, 0, 0.2, 1),
                 useNativeDriver: true,
             }),
             Animated.spring(slideAnim, {
                 toValue: 0,
-                tension: 20,
-                friction: 7,
+                tension: 15,
+                friction: 6,
                 useNativeDriver: true,
             }),
             Animated.spring(logoScale, {
                 toValue: 1,
-                tension: 10,
-                friction: 2,
+                tension: 12,
+                friction: 3,
                 useNativeDriver: true,
             })
         ]).start();
@@ -72,11 +74,17 @@ export default function LoginScreen({ navigation }) {
 
         setLoginError('');
         setIsLoading(true);
-        const result = await login(email, password);
-        setIsLoading(false);
+        try {
+            const result = await login(email, password);
+            setIsLoading(false);
 
-        if (!result.success) {
-            setLoginError(result.message || 'Invalid email or password');
+            if (!result.success) {
+                setLoginError(result.message || 'Invalid email or password');
+                shake();
+            }
+        } catch (err) {
+            setIsLoading(false);
+            setLoginError('Server connection failed. Try again.');
             shake();
         }
     };
@@ -88,96 +96,102 @@ export default function LoginScreen({ navigation }) {
         >
             <StatusBar barStyle="light-content" />
             
-            {/* Background Decoration */}
             <View style={styles.bgCircle1} />
             <View style={styles.bgCircle2} />
 
-            <Animated.View style={[
-                styles.inner, 
-                { 
-                    opacity: fadeAnim, 
-                    transform: [{ translateY: slideAnim }, { translateX: errorShake }] 
-                }
-            ]}>
-                <Animated.View style={[styles.header, { transform: [{ scale: logoScale }] }]}>
-                    <View style={styles.logoIcon}>
-                        <Text style={styles.logoText}>CB</Text>
-                    </View>
-                    <Text style={styles.title}>CampusBridge</Text>
-                    <Text style={styles.subtitle}>Hyperlocal Peer-to-Peer Help</Text>
-                </Animated.View>
-
-                <View style={styles.form}>
-                    {loginError ? (
-                        <View style={styles.errorContainer}>
-                            <Text style={styles.errorText}>{loginError}</Text>
+            <ScrollView 
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={true}
+                indicatorStyle="white"
+            >
+                <Animated.View style={[
+                    styles.inner, 
+                    { 
+                        opacity: fadeAnim, 
+                        transform: [{ translateY: slideAnim }, { translateX: errorShake }] 
+                    }
+                ]}>
+                    <Animated.View style={[styles.header, { transform: [{ scale: logoScale }] }]}>
+                        <View style={styles.logoIcon}>
+                            <Text style={styles.logoText}>CB</Text>
                         </View>
-                    ) : null}
+                        <Text style={styles.title}>CampusBridge</Text>
+                        <Text style={styles.subtitle}>Hyperlocal Peer-to-Peer Help</Text>
+                    </Animated.View>
 
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>Email Address</Text>
-                        <TextInput
-                            style={[styles.input, loginError && styles.inputError]}
-                            placeholder="your@email.com"
-                            placeholderTextColor="#999"
-                            value={email}
-                            onChangeText={(t) => { setEmail(t); setLoginError(''); }}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            editable={!isLoading}
-                        />
-                    </View>
+                    <View style={styles.form}>
+                        {loginError ? (
+                            <View style={styles.errorContainer}>
+                                <Text style={styles.errorText}>{loginError}</Text>
+                            </View>
+                        ) : null}
 
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>Password</Text>
-                        <View style={[styles.passwordWrapper, loginError && styles.inputError]}>
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>Email Address</Text>
                             <TextInput
-                                style={[styles.input, { flex: 1, marginBottom: 0, borderWeight: 0, borderWidth: 0 }]}
-                                placeholder="••••••••"
-                                placeholderTextColor="#999"
-                                value={password}
-                                onChangeText={(t) => { setPassword(t); setLoginError(''); }}
-                                secureTextEntry={!showPassword}
+                                style={[styles.input, loginError && styles.inputError]}
+                                placeholder="your@email.com"
+                                placeholderTextColor="rgba(148, 163, 184, 0.4)"
+                                value={email}
+                                onChangeText={(t) => { setEmail(t); setLoginError(''); }}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
                                 editable={!isLoading}
                             />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>Password</Text>
+                            <View style={[styles.passwordWrapper, loginError && styles.inputError]}>
+                                <TextInput
+                                    style={[styles.input, { flex: 1, marginBottom: 0, borderWidth: 0 }]}
+                                    placeholder="••••••••"
+                                    placeholderTextColor="rgba(148, 163, 184, 0.4)"
+                                    value={password}
+                                    onChangeText={(t) => { setPassword(t); setLoginError(''); }}
+                                    secureTextEntry={!showPassword}
+                                    editable={!isLoading}
+                                />
+                                <TouchableOpacity 
+                                    style={styles.toggleBtn}
+                                    onPress={() => setShowPassword(!showPassword)}
+                                >
+                                    <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
+                                </TouchableOpacity>
+                            </View>
                             <TouchableOpacity 
-                                style={styles.toggleBtn}
-                                onPress={() => setShowPassword(!showPassword)}
+                                onPress={() => navigation.navigate('ForgotPassword')}
+                                style={styles.forgotBtn}
                             >
-                                <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
+                                <Text style={[styles.forgotText, loginError && styles.highlightText]}>Forgot Password?</Text>
                             </TouchableOpacity>
                         </View>
+
                         <TouchableOpacity 
-                            onPress={() => navigation.navigate('ForgotPassword')}
-                            style={styles.forgotBtn}
+                            style={[styles.button, isLoading && styles.disabledButton]} 
+                            onPress={handleLogin}
+                            disabled={isLoading}
                         >
-                            <Text style={[styles.forgotText, loginError && styles.highlightText]}>Forgot Password?</Text>
+                            {isLoading ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={styles.buttonText}>Login</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate('Register')}
+                            style={styles.footerLink}
+                            disabled={isLoading}
+                        >
+                            <Text style={styles.linkText}>
+                                Don't have an account? <Text style={[styles.linkBold, loginError && styles.highlightText]}>Sign Up</Text>
+                            </Text>
                         </TouchableOpacity>
                     </View>
-
-                    <TouchableOpacity 
-                        style={[styles.button, isLoading && styles.disabledButton]} 
-                        onPress={handleLogin}
-                        disabled={isLoading}
-                    >
-                        {isLoading ? (
-                            <ActivityIndicator color="#fff" />
-                        ) : (
-                            <Text style={styles.buttonText}>Login</Text>
-                        )}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity 
-                        onPress={() => navigation.navigate('Register')}
-                        style={styles.footerLink}
-                        disabled={isLoading}
-                    >
-                        <Text style={styles.linkText}>
-                            Don't have an account? <Text style={[styles.linkBold, loginError && styles.highlightText]}>Sign Up</Text>
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </Animated.View>
+                </Animated.View>
+            </ScrollView>
         </KeyboardAvoidingView>
     );
 }
@@ -186,6 +200,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#0F172A',
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        justifyContent: 'center',
     },
     bgCircle1: {
         position: 'absolute',
@@ -206,9 +227,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(99, 102, 241, 0.1)',
     },
     inner: {
-        flex: 1,
         padding: 30,
-        justifyContent: 'center',
     },
     header: {
         alignItems: 'center',
@@ -217,7 +236,7 @@ const styles = StyleSheet.create({
     logoIcon: {
         width: 80,
         height: 80,
-        borderRadius: 25,
+        borderRadius: 24,
         backgroundColor: '#2563EB',
         justifyContent: 'center',
         alignItems: 'center',
@@ -315,7 +334,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     highlightText: {
-        color: '#F97316', // Highlight in orange/amber
+        color: '#F97316',
         fontWeight: 'bold',
     },
     button: {
@@ -352,4 +371,3 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
 });
-

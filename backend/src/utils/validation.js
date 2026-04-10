@@ -8,15 +8,16 @@ const signupSchema = Joi.object({
     password: Joi.string().min(6).required(),
     phoneNumber: Joi.string().required(),
     collegeName: Joi.string().required(),
-    role: Joi.string().valid('User', 'Admin').default('User'),
+    role: Joi.string().valid('User', 'Admin', 'Requester', 'Server').default('User'),
     campusId: Joi.string().optional(), // MongoDB ObjectId string
-});
+}).unknown(true);
 
 
 const loginSchema = Joi.object({
     email: Joi.string().email().required().lowercase(),
     password: Joi.string().required(),
-});
+}).unknown(true);
+
 
 const createTaskSchema = Joi.object({
     category: Joi.string().valid('Printout', 'Food', 'Stationery').required(),
