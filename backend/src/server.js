@@ -39,10 +39,40 @@ io.on('connection', (socket) => {
         logger.info(`Socket ${socket.id} joined user room: ${userId}`);
     });
 
+    // Join task-specific room for live tracking
+    socket.on('joinTask', (taskId) => {
+        socket.join(taskId.toString());
+        logger.info(`Socket ${socket.id} joined task room: ${taskId}`);
+    });
+
+
+    // In-memory store for live locations (ServerID -> LatLng)
+    const liveLocations = new Map();
+
+    // Live location updates from Servers
+    socket.on('location-update', (data) => {
+        const { userId, taskId, coordinates } = data;
+        
+        if (userId && coordinates) {
+            liveLocations.set(userId.toString(), coordinates);
+            
+            // Broadcast to the task-specific room (Requester is listening here)
+            if (taskId) {
+                io.to(taskId.toString()).emit('tracking-update', {
+                    userId,
+                    taskId,
+                    coordinates,
+                    timestamp: new Date()
+                });
+            }
+        }
+    });
+
     socket.on('disconnect', () => {
         logger.info(`Client disconnected: ${socket.id}`);
     });
 });
+
 
 
 // Make io accessible globally if needed (or pass to controllers)

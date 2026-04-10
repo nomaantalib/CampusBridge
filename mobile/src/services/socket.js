@@ -35,7 +35,26 @@ class SocketService {
         }
     }
 
+    joinTask(taskId) {
+        if (this.socket) {
+            this.socket.emit('joinTask', taskId);
+        }
+    }
+
+    emitLocation(data) {
+        if (this.socket) {
+            this.socket.emit('location-update', data);
+        }
+    }
+
+    onTrackingUpdate(callback) {
+        if (this.socket) {
+            this.socket.on('tracking-update', callback);
+        }
+    }
+
     onNewTask(callback) {
+
         if (this.socket) {
             this.socket.on('new-task', callback);
         }

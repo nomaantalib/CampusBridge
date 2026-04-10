@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Alert,
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import socket from '../services/socket';
+import locationService from '../services/locationService';
 
 export default function BiddingScreen({ route, navigation }) {
     const { task: initialTask } = route.params;
@@ -12,7 +13,7 @@ export default function BiddingScreen({ route, navigation }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        // Listen for live bids on this specific task
+        // Listen for live bids
         socket.onNewBid((data) => {
             if (data.taskId === task._id) {
                 setTask(prevTask => ({
@@ -22,6 +23,27 @@ export default function BiddingScreen({ route, navigation }) {
                 }));
             }
         });
+
+        // Listen for status updates
+        const io = socket.socket;
+        if (io) {
+            io.on('task-status-updated', (updatedTask) => {
+                if (updatedTask._id === task._id) {
+                    setTask(updatedTask);
+                }
+            });
+        }
+
+        // Auto-start tracking if already InTransit and I am the server
+        if (task.status === 'InTransit' && user?.id === task.serverId) {
+            locationService.startTracking(user.id, task._id);
+        }
+
+        return () => {
+            if (user?.id === task.serverId) {
+                locationService.stopTracking();
+            }
+        };
     }, []);
 
     const handlePlaceBid = async () => {
@@ -49,7 +71,26 @@ export default function BiddingScreen({ route, navigation }) {
         }
     };
 
+    const handleUpdateStatus = async (newStatus) => {
+        setIsSubmitting(true);
+        try {
+            const response = await api.patch(`/tasks/${task._id}/status`, { status: newStatus });
+            if (response.data.success) {
+                setTask(response.data.data);
+                if (newStatus === 'InTransit') {
+                    locationService.startTracking(user.id, task._id);
+                    Alert.alert('Delivery Started', 'You are now live tracking!');
+                }
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Failed to update status');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const isServer = user?.role === 'Server';
+    const isAssignedServer = user?.id === task.serverId;
     const isRequester = user?.id === task.requesterId;
 
     return (
@@ -57,15 +98,35 @@ export default function BiddingScreen({ route, navigation }) {
             <View style={styles.taskSection}>
                 <View style={styles.header}>
                     <Text style={styles.category}>{task.category}</Text>
-                    <Text style={styles.baseFare}>Offer: ₹{task.offeredFare}</Text>
+                    <Text style={styles.baseFare}>₹{task.finalFare || task.offeredFare}</Text>
                 </View>
                 <Text style={styles.description}>{task.description}</Text>
-                <View style={styles.statusBadge}>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(task.status) }]}>
                     <Text style={styles.statusText}>{task.status}</Text>
                 </View>
+
+                {isRequester && task.status === 'InTransit' && (
+                    <TouchableOpacity 
+                        style={styles.trackingButton}
+                        onPress={() => navigation.navigate('Tracking', { task })}
+                    >
+                        <Text style={styles.trackingButtonText}>📍 View Live Tracking</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
-            {isServer && task.status === 'Open' || task.status === 'Negotiating' ? (
+            {isAssignedServer && task.status === 'Accepted' && (
+                <View style={styles.actionSection}>
+                    <TouchableOpacity 
+                        style={styles.startDeliveryButton}
+                        onPress={() => handleUpdateStatus('InTransit')}
+                    >
+                        <Text style={styles.buttonText}>Start Delivery & Live Tracking</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {isServer && !isAssignedServer && (task.status === 'Open' || task.status === 'Negotiating') ? (
                 <View style={styles.inputSection}>
                     <Text style={styles.sectionTitle}>Place Your Bid</Text>
                     <View style={styles.inputRow}>
@@ -114,6 +175,16 @@ export default function BiddingScreen({ route, navigation }) {
     );
 }
 
+const getStatusColor = (status) => {
+    switch (status) {
+        case 'Open': return '#E3F2FD';
+        case 'Accepted': return '#E8F5E9';
+        case 'InTransit': return '#FFF3E0';
+        case 'Completed': return '#F1F8E9';
+        default: return '#F5F5F5';
+    }
+};
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -155,15 +226,42 @@ const styles = StyleSheet.create({
     },
     statusBadge: {
         alignSelf: 'flex-start',
-        backgroundColor: '#F0F0F0',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 4,
+        marginBottom: 10,
     },
     statusText: {
         fontSize: 12,
         fontWeight: '600',
         color: '#666',
+    },
+    trackingButton: {
+        backgroundColor: '#2196F3',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    trackingButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+    actionSection: {
+        paddingHorizontal: 16,
+        marginBottom: 16,
+    },
+    startDeliveryButton: {
+        backgroundColor: '#FF9800',
+        paddingVertical: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        elevation: 3,
+    },
+    buttonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 16,
     },
     inputSection: {
         padding: 16,
@@ -246,5 +344,6 @@ const styles = StyleSheet.create({
         marginTop: 20,
     },
 });
+
 
 
