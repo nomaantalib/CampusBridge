@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User');
+const memoryDb = require('../utils/memoryDb');
 
 // Protect routes
 exports.protect = async (req, res, next) => {
@@ -25,7 +27,14 @@ exports.protect = async (req, res, next) => {
         // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
 
-        req.user = await User.findById(decoded.id);
+        // Choose storage: MongoDB when connected, otherwise in-memory fallback for dev
+        const useDb = mongoose.connection && mongoose.connection.readyState === 1;
+
+        if (useDb) {
+            req.user = await User.findById(decoded.id);
+        } else {
+            req.user = await memoryDb.findUserById(decoded.id);
+        }
 
         if (!req.user) {
             return res.status(401).json({

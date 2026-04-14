@@ -1,0 +1,100 @@
+/* Responsive Thin Decorative Scrollbar Styling */
+
+/* Global Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5) !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7) !important;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: rgba(100, 116, 139, 0.9) !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* All scroll containers */
+.scroll-container {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(148, 163, 184, 0.5) transparent !important;
+}
+
+.scroll-container::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5) !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+}
+
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7) !important;
+}
+
+/* Auth Screen Scrollbars */
+.scroll-view-container {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(96, 165, 250, 0.6) rgba(15, 23, 42, 0.3) !important;
+}
+
+.scroll-view-container::-webkit-scrollbar {
+  width: 10px !important;
+}
+
+.scroll-view-container::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3) !important;
+  border-radius: 5px !important;
+}
+
+.scroll-view-container::-webkit-scrollbar-thumb {
+  background: rgba(96, 165, 250, 0.6) !important;
+  border-radius: 5px !important;
+  cursor: pointer !important;
+  border: 2px solid rgba(15, 23, 42, 0.3) !important;
+}
+
+.scroll-view-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(96, 165, 250, 0.8) !important;
+  border-width: 2px !important;
+}
+
+.scroll-view-container::-webkit-scrollbar-thumb:active {
+  background: rgba(37, 99, 235, 1) !important;
+}
+
+.scroll-view-container::-webkit-scrollbar-corner {
+  background: rgba(15, 23, 42, 0.3) !important;
+}
+
+.scroll-container::-webkit-scrollbar-thumb:active {
+  background: rgba(100, 116, 139, 0.9) !important;
+}
+
+/* Prevent Browser White Autofill styling breaking dark theme */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 50px rgba(15,23,42,1) inset !important;
+    -webkit-text-fill-color: #F8FAFC !important;
+    transition: background-color 5000s ease-in-out 0s !important;
+    background-color: transparent !important;
+}

@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema({
         unique: true,
         lowercase: true,
         match: [
-            /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+            /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,
             'Please add a valid email',
         ],
     },
@@ -24,10 +24,13 @@ const userSchema = new mongoose.Schema({
         select: false,
     },
     phoneNumber: {
-
         type: String,
         required: [true, 'Please add a phone number'],
         unique: true,
+        match: [
+            /^\+[1-9]\d{6,14}$/,
+            'Phone number must be in E.164 format, e.g. +911234567890'
+        ],
     },
     collegeName: {
         type: String,
@@ -35,7 +38,7 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['User', 'Admin'],
+        enum: ['User', 'Admin', 'Requester', 'Server'],
         default: 'User',
     },
     campusId: {
@@ -68,7 +71,6 @@ const userSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-userSchema.index({ email: 1 });
 userSchema.index({ campusId: 1 });
 userSchema.index({ role: 1 });
 
