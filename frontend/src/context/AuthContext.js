@@ -17,7 +17,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   async function loadStorageData() {
+    let timeoutId;
     try {
+      // Safety timeout to ensure app always loads even if storage/network hangs
+      timeoutId = setTimeout(() => {
+        if (loading) {
+          console.warn("[Auth] Initialization timeout - forcing load state clearing");
+          setLoading(false);
+        }
+      }, 5000);
+
       const authDataSerialized = await AsyncStorage.getItem("user");
       const token = await AsyncStorage.getItem("accessToken");
 
@@ -25,15 +34,24 @@ export const AuthProvider = ({ children }) => {
         // Verify token with backend
         try {
           const response = await api.get("/auth/me");
-          setUser(response.data.data);
+          if (response.data.success) {
+            setUser(response.data.data || response.data.user);
+          } else {
+             await logout();
+          }
         } catch (apiError) {
-          await logout();
+          console.warn("[Auth] Static auth validation failed, continuing as guest");
+          // If 401, we logout. If network error, we might keep local state but for safety we logout or just clear loading
+          if (apiError.response?.status === 401) {
+             await logout();
+          }
         }
       }
     } catch (error) {
-      console.error("Failed to load auth data from storage");
+      console.error("[Auth] Storage load failed:", error);
       await logout();
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       setLoading(false);
     }
   }
@@ -146,8 +164,31 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const updateUser = async (updatedData) => {
+    try {
+      const response = await api.patch("/auth/me", updatedData);
+      
+      if (response.data.success) {
+        // Use server response as source of truth
+        const newUser = response.data.user || response.data.data;
+        if (newUser) {
+          await AsyncStorage.setItem("user", JSON.stringify(newUser));
+          setUser(newUser);
+          return { success: true };
+        }
+      }
+      return { success: false, message: response.data.message || 'Update failed' };
+    } catch (error) {
+      console.error("[Auth] Update user error:", error.response?.data || error.message);
+      return { 
+        success: false, 
+        message: error.response?.data?.message || error.message || "Failed to update profile" 
+      };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, updateUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );

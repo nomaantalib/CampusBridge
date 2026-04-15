@@ -79,7 +79,9 @@ router.post('/signup', async (req, res, next) => {
                         id: user._id,
                         name: user.name,
                         email: user.email,
-                        role: user.role
+                        role: user.role,
+                        campusId: user.campusId,
+                        collegeName: user.collegeName
                     }
                 });
             } catch (dbErr) {
@@ -157,7 +159,9 @@ router.post('/login', async (req, res, next) => {
                 id: user._id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                campusId: user.campusId,
+                collegeName: user.collegeName
             }
         });
     } catch (err) {
@@ -214,6 +218,50 @@ router.get('/me', protect, async (req, res, next) => {
         res.status(200).json({
             success: true,
             data: req.user
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// @desc    Update user profile
+// @route   PATCH /api/auth/me
+// @access  Private
+router.patch('/me', protect, async (req, res, next) => {
+    try {
+        const { name, avatar } = req.body;
+        
+        const useDb = mongoose.connection && mongoose.connection.readyState === 1;
+        let user;
+
+        if (useDb) {
+            user = await User.findById(req.user._id);
+            if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+            if (name) user.name = name;
+            if (avatar) user.avatar = avatar;
+
+            await user.save();
+        } else {
+            user = await memoryDb.findUserById(req.user._id);
+            if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+            
+            if (name) user.name = name;
+            if (avatar) user.avatar = avatar;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully',
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                avatar: user.avatar,
+                campusId: user.campusId,
+                collegeName: user.collegeName
+            }
         });
     } catch (err) {
         next(err);

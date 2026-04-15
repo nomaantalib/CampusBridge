@@ -43,7 +43,7 @@ const holdEscrow = async (requesterId, taskId, amount) => {
     }
 };
 
-// @desc    Get open tasks
+// @desc    Get open tasks in my campus
 // @route   GET /api/tasks
 // @access  Private
 router.get('/', async (req, res, next) => {
@@ -58,10 +58,45 @@ router.get('/', async (req, res, next) => {
     }
 });
 
+// @desc    Get user's tasks (requested or serving)
+// @route   GET /api/tasks/my-tasks
+// @access  Private
+router.get('/my-tasks', async (req, res, next) => {
+    try {
+        const tasks = await Task.find({
+            $or: [{ requesterId: req.user.id }, { serverId: req.user.id }]
+        }).sort('-createdAt');
+        res.status(200).json({ success: true, count: tasks.length, data: tasks });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// @desc    Get single task
+// @route   GET /api/tasks/:id
+// @access  Private
+router.get('/:id', async (req, res, next) => {
+    try {
+        const task = await Task.findById(req.params.id);
+        if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+        
+        // Ensure user belongs to same campus or is requester/server
+        if (task.campusId.toString() !== req.user.campusId.toString() && 
+            task.requesterId.toString() !== req.user.id && 
+            task.serverId?.toString() !== req.user.id) {
+            return res.status(403).json({ success: false, message: 'Not authorized for this task' });
+        }
+
+        res.status(200).json({ success: true, data: task });
+    } catch (err) {
+        next(err);
+    }
+});
+
 // @desc    Create a new task
 // @route   POST /api/tasks
 // @access  Private (Requester)
-router.post('/', authorize('Requester', 'Admin'), async (req, res, next) => {
+router.post('/', authorize('Requester', 'Admin', 'User'), async (req, res, next) => {
     try {
         const { error } = createTaskSchema.validate(req.body);
         if (error) return res.status(400).json({ success: false, message: error.details[0].message });
@@ -76,7 +111,9 @@ router.post('/', authorize('Requester', 'Admin'), async (req, res, next) => {
         });
 
         const io = req.app.get('io');
-        io.to(req.user.campusId.toString()).emit('new-task', task);
+        if (req.user.campusId) {
+            io.to(req.user.campusId.toString()).emit('new-task', task);
+        }
         res.status(201).json({ success: true, data: task });
     } catch (err) {
         next(err);
@@ -86,7 +123,7 @@ router.post('/', authorize('Requester', 'Admin'), async (req, res, next) => {
 // @desc    Place a bid on a task
 // @route   POST /api/tasks/bid
 // @access  Private (Server)
-router.post('/bid', authorize('Server', 'Admin'), async (req, res, next) => {
+router.post('/bid', authorize('Server', 'Admin', 'User'), async (req, res, next) => {
     try {
         const { error } = placeBidSchema.validate(req.body);
         if (error) return res.status(400).json({ success: false, message: error.details[0].message });
@@ -110,8 +147,10 @@ router.post('/bid', authorize('Server', 'Admin'), async (req, res, next) => {
         await task.save();
 
         const io = req.app.get('io');
-        io.to(task.requesterId.toString()).emit('new-bid', { taskId: task._id, bid });
-        res.status(200).json({ success: true, data: task });
+        if (task.requesterId) {
+            io.to(task.requesterId.toString()).emit('new-bid', { taskId: task._id, bid });
+        }
+        res.status(201).json({ success: true, data: task });
     } catch (err) {
         next(err);
     }
@@ -120,7 +159,7 @@ router.post('/bid', authorize('Server', 'Admin'), async (req, res, next) => {
 // @desc    Accept a bid
 // @route   POST /api/tasks/accept
 // @access  Private (Requester)
-router.post('/accept', authorize('Requester', 'Admin'), async (req, res, next) => {
+router.post('/accept', authorize('Requester', 'Admin', 'User'), async (req, res, next) => {
     try {
         const { error } = acceptBidSchema.validate(req.body);
         if (error) return res.status(400).json({ success: false, message: error.details[0].message });
@@ -129,8 +168,8 @@ router.post('/accept', authorize('Requester', 'Admin'), async (req, res, next) =
         let task = await Task.findById(taskId);
         if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-        if (task.requesterId.toString() !== req.user.id && req.user.role !== 'Admin') {
-            return res.status(401).json({ success: false, message: 'Not authorized' });
+        if (task.requesterId?.toString() !== req.user.id && req.user.role !== 'Admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
         if (task.serverId) {
@@ -173,7 +212,9 @@ router.post('/accept', authorize('Requester', 'Admin'), async (req, res, next) =
         }
 
         const io = req.app.get('io');
-        io.to(updatedTask.serverId.toString()).emit('task-accepted', { taskId: updatedTask._id, requesterId: updatedTask.requesterId });
+        if (updatedTask.serverId) {
+            io.to(updatedTask.serverId.toString()).emit('task-accepted', { taskId: updatedTask._id, requesterId: updatedTask.requesterId });
+        }
         res.status(200).json({ success: true, data: updatedTask });
     } catch (err) {
         next(err);
@@ -183,7 +224,7 @@ router.post('/accept', authorize('Requester', 'Admin'), async (req, res, next) =
 // @desc    Update task status
 // @route   PATCH /api/tasks/:id/status
 // @access  Private (Server)
-router.patch('/:id/status', authorize('Server', 'Admin'), async (req, res, next) => {
+router.patch('/:id/status', authorize('Server', 'Admin', 'User'), async (req, res, next) => {
     try {
         const { status } = req.body;
         const validStatuses = ['InTransit', 'Cancelled'];
@@ -194,15 +235,17 @@ router.patch('/:id/status', authorize('Server', 'Admin'), async (req, res, next)
         let task = await Task.findById(req.params.id);
         if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-        if (task.serverId.toString() !== req.user.id && req.user.role !== 'Admin') {
-            return res.status(401).json({ success: false, message: 'Not authorized' });
+        if (task.serverId?.toString() !== req.user.id && req.user.role !== 'Admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized to update this task' });
         }
 
         task.status = status;
         await task.save();
 
         const io = req.app.get('io');
-        io.to(task.campusId.toString()).emit('taskStatusUpdated', { taskId: task._id, status });
+        if (task.campusId) {
+            io.to(task.campusId.toString()).emit('taskStatusUpdated', { taskId: task._id, status });
+        }
         res.status(200).json({ success: true, data: task });
     } catch (err) {
         next(err);
@@ -212,14 +255,14 @@ router.patch('/:id/status', authorize('Server', 'Admin'), async (req, res, next)
 // @desc    Complete task with OTP
 // @route   POST /api/tasks/verify-otp
 // @access  Private (Server)
-router.post('/verify-otp', authorize('Server', 'Admin'), async (req, res, next) => {
+router.post('/verify-otp', authorize('Server', 'Admin', 'User'), async (req, res, next) => {
     try {
         const { taskId, otp } = req.body;
         let task = await Task.findById(taskId);
         if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
         if (task.status === 'Completed') return res.status(200).json({ success: true, data: task });
-        if (task.serverId.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'Not authorized' });
+        if (task.serverId?.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Not authorized' });
         if (task.otpCode !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
 
         // Release payment from escrow to server
@@ -269,7 +312,9 @@ router.post('/verify-otp', authorize('Server', 'Admin'), async (req, res, next) 
         await task.save();
 
         const io = req.app.get('io');
-        io.to(task.campusId.toString()).emit('taskCompleted', { taskId: task._id });
+        if (task.campusId) {
+            io.to(task.campusId.toString()).emit('taskCompleted', { taskId: task._id });
+        }
         res.status(200).json({ success: true, data: task });
     } catch (err) {
         next(err);
@@ -279,13 +324,13 @@ router.post('/verify-otp', authorize('Server', 'Admin'), async (req, res, next) 
 // @desc    Cancel task
 // @route   POST /api/tasks/:id/cancel
 // @access  Private (Requester)
-router.post('/:id/cancel', authorize('Requester', 'Admin'), async (req, res, next) => {
+router.post('/:id/cancel', authorize('Requester', 'Admin', 'User'), async (req, res, next) => {
     try {
         let task = await Task.findById(req.params.id);
         if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-        if (task.requesterId.toString() !== req.user.id && req.user.role !== 'Admin') {
-            return res.status(401).json({ success: false, message: 'Not authorized' });
+        if (task.requesterId?.toString() !== req.user.id && req.user.role !== 'Admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
         if (['Accepted', 'InTransit'].includes(task.status)) {
@@ -322,7 +367,9 @@ router.post('/:id/cancel', authorize('Requester', 'Admin'), async (req, res, nex
         await task.save();
 
         const io = req.app.get('io');
-        io.to(task.campusId.toString()).emit('taskStatusUpdated', { taskId: task._id, status: 'Cancelled' });
+        if (task.campusId) {
+            io.to(task.campusId.toString()).emit('taskStatusUpdated', { taskId: task._id, status: 'Cancelled' });
+        }
         res.status(200).json({ success: true, data: task });
     } catch (err) {
         next(err);

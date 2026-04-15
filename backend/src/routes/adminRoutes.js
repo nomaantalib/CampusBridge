@@ -1,9 +1,18 @@
 const express = require('express');
 const { protect, authorize } = require('../middleware/auth');
+const {
+    getAnalytics,
+    getAllUsers,
+    getUserDetails,
+    resolveDispute,
+    getFinanceDetails,
+    getSuspiciousUsers,
+    replyToTicket
+} = require('../controllers/adminController');
 const Campus = require('../models/Campus');
-const User = require('../models/User');
 const Task = require('../models/Task');
-const Transaction = require('../models/Transaction');
+const Dispute = require('../models/Dispute');
+const SupportTicket = require('../models/SupportTicket');
 
 const router = express.Router();
 
@@ -11,8 +20,41 @@ const router = express.Router();
 router.use(protect);
 router.use(authorize('Admin'));
 
-// @desc    Get all campuses
-// @route   GET /api/admin/campuses
+// --- Dashboard & Analytics ---
+router.get('/analytics', getAnalytics);
+
+// --- User Management ---
+router.get('/users', getAllUsers);
+router.get('/users/:id', getUserDetails);
+
+// --- Task & Dispute Management ---
+router.get('/tasks', async (req, res, next) => {
+    try {
+        const { status, campusId } = req.query;
+        let query = {};
+        if (status) query.status = status;
+        if (campusId) query.campusId = campusId;
+
+        const tasks = await Task.find(query)
+            .populate('requesterId', 'name email')
+            .populate('serverId', 'name email')
+            .populate('campusId', 'name')
+            .sort('-createdAt');
+
+        res.status(200).json({ success: true, count: tasks.length, data: tasks });
+    } catch (err) { next(err); }
+});
+
+router.get('/disputes', async (req, res, next) => {
+    try {
+        const disputes = await Dispute.find().sort('-createdAt');
+        res.status(200).json({ success: true, data: disputes });
+    } catch (err) { next(err); }
+});
+
+router.post('/disputes/:id/resolve', resolveDispute);
+
+// --- Campus Management ---
 router.get('/campuses', async (req, res, next) => {
     try {
         const campuses = await Campus.find();
@@ -20,50 +62,27 @@ router.get('/campuses', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-// @desc    Create a campus
-// @route   POST /api/admin/campuses
-router.post('/campuses', async (req, res, next) => {
+router.patch('/campuses/:id', async (req, res, next) => {
     try {
-        const campus = await Campus.create(req.body);
-        res.status(201).json({ success: true, data: campus });
+        const campus = await Campus.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.status(200).json({ success: true, data: campus });
     } catch (err) { next(err); }
 });
 
-// @desc    Suspend/Unsuspend user
-// @route   PATCH /api/admin/users/:id/suspend
-router.patch('/users/:id/suspend', async (req, res, next) => {
-    try {
-        const user = await User.findById(req.params.id);
-        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-        
-        user.isSuspended = !user.isSuspended;
-        await user.save();
+// --- Finance ---
+router.get('/finance', getFinanceDetails);
 
-        res.status(200).json({ success: true, data: user });
+// --- Fraud Detection ---
+router.get('/fraud/suspicious', getSuspiciousUsers);
+
+// --- Support ---
+router.get('/support/tickets', async (req, res, next) => {
+    try {
+        const tickets = await SupportTicket.find().populate('userId', 'name email').sort('-createdAt');
+        res.status(200).json({ success: true, data: tickets });
     } catch (err) { next(err); }
 });
 
-// @desc    Get system-wide stats
-// @route   GET /api/admin/stats
-router.get('/stats', async (req, res, next) => {
-    try {
-        const totalUsers = await User.countDocuments();
-        const totalTasks = await Task.countDocuments();
-        const completedTasks = await Task.countDocuments({ status: 'Completed' });
-        
-        // Revenue calculation (20% of finalFare for completed tasks)
-        const revenueResult = await Task.aggregate([
-            { $match: { status: 'Completed' } },
-            { $group: { _id: null, totalRevenue: { $sum: { $multiply: ['$finalFare', 0.20] } } } }
-        ]);
-
-        const revenue = revenueResult.length > 0 ? revenueResult[0].totalRevenue : 0;
-
-        res.status(200).json({
-            success: true,
-            data: { totalUsers, totalTasks, completedTasks, revenue }
-        });
-    } catch (err) { next(err); }
-});
+router.post('/support/tickets/:id/reply', replyToTicket);
 
 module.exports = router;

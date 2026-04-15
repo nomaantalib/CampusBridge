@@ -1,9 +1,9 @@
-/* Responsive Thin Decorative Scrollbar Styling */
+/* Premium Adaptive Scrollbar Styling */
 
 /* Global Webkit browsers (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {
-  width: 8px !important;
-  height: 8px !important;
+  width: 6px !important;
+  height: 6px !important;
 }
 
 ::-webkit-scrollbar-track {
@@ -11,84 +11,36 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.5) !important;
-  border-radius: 4px !important;
-  cursor: pointer !important;
+  background: rgba(148, 163, 184, 0.6) !important; /* High contrast thumb */
+  border-radius: 10px !important;
+  transition: background 0.3s ease !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.7) !important;
+  background: rgba(255, 112, 67, 0.6) !important; /* Peach hover for light mode hint */
 }
 
-::-webkit-scrollbar-thumb:active {
-  background: rgba(100, 116, 139, 0.9) !important;
+/* For Dark Theme contexts */
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover,
+.dark-theme ::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.6) !important; /* Blue hover for dark mode */
 }
 
-::-webkit-scrollbar-corner {
-  background: transparent !important;
-}
-
-/* All scroll containers */
-.scroll-container {
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(148, 163, 184, 0.5) transparent !important;
-}
-
-.scroll-container::-webkit-scrollbar {
-  width: 8px !important;
-  height: 8px !important;
-}
-
-.scroll-container::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.5) !important;
-  border-radius: 4px !important;
-  cursor: pointer !important;
-}
-
-.scroll-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.7) !important;
-}
-
-/* Auth Screen Scrollbars */
+/* List containers and specific scrollable areas */
+.scroll-container, 
 .scroll-view-container {
   scrollbar-width: thin !important;
-  scrollbar-color: rgba(96, 165, 250, 0.6) rgba(15, 23, 42, 0.3) !important;
+  scrollbar-color: rgba(148, 163, 184, 0.2) transparent !important;
 }
 
-.scroll-view-container::-webkit-scrollbar {
-  width: 10px !important;
+/* Force hover visibility for better UX */
+::-webkit-scrollbar-thumb:active {
+  background: rgba(148, 163, 184, 0.8) !important;
 }
 
-.scroll-view-container::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.3) !important;
-  border-radius: 5px !important;
-}
-
-.scroll-view-container::-webkit-scrollbar-thumb {
-  background: rgba(96, 165, 250, 0.6) !important;
-  border-radius: 5px !important;
-  cursor: pointer !important;
-  border: 2px solid rgba(15, 23, 42, 0.3) !important;
-}
-
-.scroll-view-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(96, 165, 250, 0.8) !important;
-  border-width: 2px !important;
-}
-
-.scroll-view-container::-webkit-scrollbar-thumb:active {
-  background: rgba(37, 99, 235, 1) !important;
-}
-
-.scroll-view-container::-webkit-scrollbar-corner {
-  background: rgba(15, 23, 42, 0.3) !important;
-}
-
-.scroll-container::-webkit-scrollbar-thumb:active {
-  background: rgba(100, 116, 139, 0.9) !important;
-}
-
-/* Prevent Browser White Autofill styling breaking dark theme */
+/* Prevent Browser White Autofill styling breaking themes */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 
 input:-webkit-autofill:focus, 
@@ -97,4 +49,21 @@ input:-webkit-autofill:active {
     -webkit-text-fill-color: #F8FAFC !important;
     transition: background-color 5000s ease-in-out 0s !important;
     background-color: transparent !important;
+}
+
+/* Smooth scrolling for the whole app window */
+html, body, #root {
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden !important; /* Lock root to prevent double scrollbars */
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+html {
+  scroll-behavior: smooth;
 }

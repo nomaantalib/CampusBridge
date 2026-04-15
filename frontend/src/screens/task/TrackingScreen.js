@@ -1,80 +1,135 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, StatusBar } from 'react-native';
-import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+    View, 
+    Text, 
+    StyleSheet, 
+    TouchableOpacity, 
+    StatusBar, 
+    Platform,
+    Image,
+    Alert,
+    Dimensions,
+    Animated as RNAnimated
+} from 'react-native';
+import { useAppTheme } from '../../context/ThemeContext';
+import MapView, { Marker, UrlTile } from '../../components/MapBridge';
 import api from '../../services/api';
 import socket from '../../services/socket';
-import { theme } from '../../utils/theme';
+import { getShadow } from '../../utils/theme';
 
 export default function TrackingScreen({ route, navigation }) {
     const { task } = route.params;
+    const { theme, isDark } = useAppTheme();
     const [serverLoc, setServerLoc] = useState(null);
     const [campus, setCampus] = useState(null);
+    
+    // Smooth Animation Values
+    const latAnim = useRef(new RNAnimated.Value(28.6139)).current;
+    const lngAnim = useRef(new RNAnimated.Value(77.2090)).current;
+    
+    // Convert animated values to state for Marker (not strictly reactive but works with listeners)
+    const [animatedCoords, setAnimatedCoords] = useState({ latitude: 28.6139, longitude: 77.2090 });
 
     useEffect(() => {
-        fetchCampus();
-        socket.joinTask(task._id);
-        socket.onTrackingUpdate(d => {
-            if (d.taskId === task._id) {
-                setServerLoc({ latitude: d.coordinates.lat, longitude: d.coordinates.lng });
+        const latListener = latAnim.addListener(({ value }) => setAnimatedCoords(prev => ({ ...prev, latitude: value })));
+        const lngListener = lngAnim.addListener(({ value }) => setAnimatedCoords(prev => ({ ...prev, longitude: value })));
+
+        const init = async () => {
+            fetchCampus();
+            const io = await socket.getSocket();
+            if (io) {
+                socket.joinTask(task._id);
+                socket.onTrackingUpdate(d => {
+                    if (d.taskId === task._id) {
+                        const newLat = d.latitude || d.coordinates?.lat;
+                        const newLng = d.longitude || d.coordinates?.lng;
+                        
+                        if (newLat && newLng) {
+                            // Smoothly animate to new location
+                            RNAnimated.spring(latAnim, { toValue: newLat, useNativeDriver: false, friction: 8 }).start();
+                            RNAnimated.spring(lngAnim, { toValue: newLng, useNativeDriver: false, friction: 8 }).start();
+                            setServerLoc({ latitude: newLat, longitude: newLng });
+                        }
+                    }
+                });
             }
-        });
+        };
+        init();
+
+        return () => {
+            latAnim.removeListener(latListener);
+            lngAnim.removeListener(lngListener);
+            const io = socket.socket;
+            if (io) {
+                io.off('tracking-update');
+            }
+        };
     }, []);
 
     const fetchCampus = async () => {
         try {
             const res = await api.get(`/campuses/${task.campusId}`);
-            if (res.data.success) setCampus(res.data.data);
+            if (res.data.success) {
+                setCampus(res.data.data);
+                // Center map on campus initially
+                const center = res.data.data.center || { lat: 28.6139, lng: 77.2090 };
+                latAnim.setValue(center.lat);
+                lngAnim.setValue(center.lng);
+            }
         } catch (e) { console.error(e); }
     };
 
-    const polyCoords = campus?.geoFence?.coordinates[0].map(c => ({ latitude: c[1], longitude: c[0] })) || [];
-
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="dark-content" />
+        <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+            <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
             <MapView
                 style={styles.map}
-                provider={PROVIDER_GOOGLE}
-                initialRegion={{ latitude: 28.6139, longitude: 77.2090, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
-                customMapStyle={mapStyle}
+                initialRegion={{ 
+                    latitude: 28.6139, 
+                    longitude: 77.2090, 
+                    latitudeDelta: 0.01, 
+                    longitudeDelta: 0.01 
+                }}
             >
-                {campus && (
-                    <Polygon 
-                        coordinates={polyCoords} 
-                        strokeColor={theme.colors.primary} 
-                        fillColor="rgba(37, 99, 235, 0.08)" 
-                        strokeWidth={3} 
-                    />
-                )}
+                {/* Dark Mode aware Tiles */}
+                <UrlTile 
+                    urlTemplate={isDark ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
+                    maximumZ={19}
+                    flipY={false}
+                />
+
                 {serverLoc && (
-                    <Marker coordinate={serverLoc}>
+                    <Marker coordinate={animatedCoords}>
                         <View style={styles.markerContainer}>
-                            <View style={styles.markerPulse} />
-                            <View style={styles.markerDot} />
+                            <View style={[styles.markerPulse, { backgroundColor: theme.colors.primary }]} />
+                            <View style={[styles.markerDot, { backgroundColor: theme.colors.primary, borderColor: isDark ? '#FFF' : '#000' }]} />
+                            <View style={[styles.labelContainer, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)' }]}>
+                                <Text style={[styles.labelText, { color: isDark ? '#FFF' : '#000' }]}>SERVER</Text>
+                            </View>
                         </View>
                     </Marker>
                 )}
             </MapView>
 
             <View style={styles.overlay}>
-                <View style={styles.infoCard}>
+                <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
                     <View style={styles.header}>
-                        <View style={styles.statusIndicator}>
-                             <View style={styles.liveDot} />
-                             <Text style={styles.liveText}>LIVE TRACKING</Text>
+                        <View style={[styles.statusIndicator, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)' }]}>
+                             <View style={[styles.liveDot, { backgroundColor: theme.colors.success }]} />
+                             <Text style={[styles.liveText, { color: theme.colors.success }]}>LIVE TRACKING</Text>
                         </View>
-                        <Text style={styles.category}>{task.category}</Text>
+                        <Text style={[styles.category, { color: theme.colors.accent }]}>{task.category}</Text>
                     </View>
                     
-                    <Text style={styles.desc} numberOfLines={1}>{task.description}</Text>
+                    <Text style={[styles.desc, { color: theme.colors.text }]} numberOfLines={1}>{task.description}</Text>
                     
-                    <View style={styles.footer}>
+                    <View style={[styles.footer, { borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
                         <View style={styles.partnerInfo}>
-                             <Text style={styles.partnerLabel}>Delivery Partner</Text>
-                             <Text style={styles.partnerName}>Server #{task.serverId?.slice(-4) || '....'}</Text>
+                             <Text style={[styles.partnerLabel, { color: theme.colors.textMuted }]}>Delivery Partner</Text>
+                             <Text style={[styles.partnerName, { color: theme.colors.text }]}>Server #{task.serverId?.slice(-4) || '....'}</Text>
                         </View>
-                        <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
-                            <Text style={styles.closeBtnText}>Minimize</Text>
+                        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]} onPress={() => navigation.goBack()}>
+                            <Text style={[styles.closeBtnText, { color: theme.colors.textMuted }]}>Return</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -83,37 +138,34 @@ export default function TrackingScreen({ route, navigation }) {
     );
 }
 
-const mapStyle = [
-  { "elementType": "geometry", "stylers": [{ "color": "#f5f5f5" }] },
-  { "elementType": "labels.text.fill", "stylers": [{ "color": "#616161" }] },
-  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#e9e9e9" }] }
-];
-
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFF' },
+    container: { flex: 1 },
     map: { flex: 1 },
     
-    markerContainer: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-    markerPulse: { position: 'absolute', width: 30, height: 30, borderRadius: 15, backgroundColor: theme.colors.primary, opacity: 0.2 },
-    markerDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.primary, borderWidth: 2, borderColor: '#FFF' },
+    markerContainer: { width: 100, height: 100, alignItems: 'center', justifyContent: 'center' },
+    markerPulse: { position: 'absolute', width: 40, height: 40, borderRadius: 20, opacity: 0.3 },
+    markerDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3 },
+    labelContainer: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 8 },
+    labelText: { fontSize: 10, fontWeight: '900' },
 
-    overlay: { position: 'absolute', bottom: 40, left: 20, right: 20 },
+    overlay: { position: 'absolute', bottom: "5%", left: "5%", right: "5%" },
     infoCard: { 
-        backgroundColor: '#FFF', padding: 24, borderRadius: 24, 
-        shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10
+        padding: 24, borderRadius: 28, 
+        borderWidth: 1,
+        ...getShadow("#000", { width: 0, height: 10 }, 0.4, 20, 10)
     },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    statusIndicator: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.success, marginRight: 6 },
-    liveText: { fontSize: 10, fontWeight: '800', color: theme.colors.success, letterSpacing: 0.5 },
-    category: { fontSize: 13, fontWeight: 'bold', color: theme.colors.textMuted },
+    statusIndicator: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    liveDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+    liveText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+    category: { fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase' },
     
-    desc: { fontSize: 16, color: '#1E293B', fontWeight: '700', marginBottom: 20 },
+    desc: { fontSize: 18, fontWeight: '700', marginBottom: 20 },
     
-    footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 16 },
-    partnerLabel: { fontSize: 11, color: theme.colors.textMuted, marginBottom: 2 },
-    partnerName: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
+    footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, paddingTop: 16 },
+    partnerLabel: { fontSize: 11, marginBottom: 2 },
+    partnerName: { fontSize: 14, fontWeight: 'bold' },
     
-    closeBtn: { backgroundColor: '#F1F5F9', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
-    closeBtnText: { fontSize: 13, fontWeight: 'bold', color: theme.colors.textMuted }
+    closeBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
+    closeBtnText: { fontSize: 13, fontWeight: 'bold' }
 });

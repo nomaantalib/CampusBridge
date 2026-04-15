@@ -1,18 +1,14 @@
-# Use Node.js LTS
-FROM node:18-alpine
+FROM node:20-alpine
 
-# Create app directory
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Install dependencies
+# Install deps first (cache layer)
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci --only=production
 
-# Bundle app source
-COPY . .
+# Copy source
+COPY src/ ./src/
 
-# Expose port
 EXPOSE 5000
 
-# Start application
-CMD [ "npm", "start" ]
+CMD ["node", "src/server.js"]

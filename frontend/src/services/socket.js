@@ -1,37 +1,86 @@
 import { io } from 'socket.io-client';
 import { Platform } from 'react-native';
+import Constants from "expo-constants";
 
-const getSocketUrl = () => {
-    if (Platform.OS === 'android') return 'http://10.0.2.2:5000';
-    if (Platform.OS === 'web') return 'http://localhost:5000';
-    return 'http://localhost:5000';
+const getDiscoveryInfo = () => {
+    // For Production (Render)
+    if (!__DEV__) {
+        return { host: "campusbridge-api.onrender.com", protocol: "https" };
+    }
+
+    // For Local Development
+    let host = "127.0.0.1";
+    if (Platform.OS !== "web") {
+        const hostUri = Constants?.expoConfig?.hostUri || Constants?.manifest?.hostUri || "";
+        if (hostUri) {
+            host = hostUri.split(":")[0];
+        } else if (Platform.OS === "android") {
+            host = "10.0.2.2";
+        } else {
+            // Default fallback for physical iOS/Android dev device
+            host = "192.168.1.52"; 
+        }
+    }
+    return { host, protocol: "http" };
 };
-
-const SOCKET_URL = getSocketUrl();
 
 class SocketService {
     socket = null;
+    currentUrl = null;
+    connectPromise = null;
 
-    connect() {
-        if (this.socket) return;
-        
-        this.socket = io(SOCKET_URL, {
-            transports: Platform.OS === 'web' ? ['polling', 'websocket'] : ['websocket'],
-            autoConnect: true,
-        });
+    async connect() {
+        if (this.socket && this.socket.connected) return this.socket;
+        if (this.connectPromise) return this.connectPromise;
 
-        this.socket.on('connect', () => {
-            console.log('Connected to Socket.io server');
-        });
+        this.connectPromise = (async () => {
+            const { host, protocol } = getDiscoveryInfo();
+            const foundUrl = `${protocol}://${host}${!__DEV__ ? "" : ":5000"}`; 
 
-        this.socket.on('disconnect', () => {
-            console.log('Disconnected from Socket.io server');
-        });
+            if (this.socket) {
+                this.socket.disconnect();
+            }
+
+            this.currentUrl = foundUrl;
+            this.socket = io(foundUrl, {
+                transports: Platform.OS === 'web' ? ['polling', 'websocket'] : ['websocket'],
+                autoConnect: true,
+                reconnection: true,
+                reconnectionAttempts: 10,
+                reconnectionDelay: 2000
+            });
+
+            return new Promise((resolve) => {
+                const timeout = setTimeout(() => {
+                    console.warn(`⚠️ Socket connection timeout: ${foundUrl}`);
+                    resolve(this.socket);
+                }, 10000);
+
+                this.socket.once('connect', () => {
+                    clearTimeout(timeout);
+                    console.log(`✅ Connected to Socket.io: ${foundUrl}`);
+                    resolve(this.socket);
+                });
+
+                this.socket.once('connect_error', (err) => {
+                    clearTimeout(timeout);
+                    console.error('⚠️ Socket connect error:', err.message);
+                    resolve(this.socket); 
+                });
+            });
+        })();
+
+        return this.connectPromise;
     }
 
-    joinCampus(campusId) {
+    async getSocket() {
+        if (!this.socket) await this.connect();
+        return this.socket;
+    }
+
+    joinCampus(campusId, userData) {
         if (this.socket) {
-            this.socket.emit('joinCampus', campusId);
+            this.socket.emit('joinCampus', campusId, userData);
         }
     }
 
@@ -54,34 +103,36 @@ class SocketService {
     }
 
     onTrackingUpdate(callback) {
-        if (this.socket) {
-            this.socket.on('tracking-update', callback);
-        }
+        this.getSocket().then(s => s.on('tracking-update', callback));
     }
 
     onNewTask(callback) {
-
-        if (this.socket) {
-            this.socket.on('new-task', callback);
-        }
+        this.getSocket().then(s => s.on('new-task', callback));
     }
 
     onNewBid(callback) {
-        if (this.socket) {
-            this.socket.on('new-bid', callback);
-        }
+        this.getSocket().then(s => s.on('new-bid', callback));
     }
 
     onTaskAccepted(callback) {
+        this.getSocket().then(s => s.on('task-accepted', callback));
+    }
+
+    syncSettings(settings) {
         if (this.socket) {
-            this.socket.on('task-accepted', callback);
+            this.socket.emit('sync-settings', settings);
         }
+    }
+
+    onSettingsUpdated(callback) {
+        this.getSocket().then(s => s.on('settings-updated', callback));
     }
 
     disconnect() {
         if (this.socket) {
             this.socket.disconnect();
             this.socket = null;
+            this.connectPromise = null;
         }
     }
 }

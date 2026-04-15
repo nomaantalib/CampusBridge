@@ -16,69 +16,37 @@ if (Platform.OS !== "web") {
   }
 }
 
-const expoExtraApiUrl =
-  Constants.manifest?.extra?.APP_API_URL ||
-  Constants.manifest?.extra?.apiUrl ||
-  Constants.expoConfig?.extra?.APP_API_URL ||
-  Constants.expoConfig?.extra?.apiUrl;
-const envApiUrl = process.env.APP_API_URL || expoExtraApiUrl;
+const PRODUCTION_URL = "https://campusbridge-api.onrender.com/api"; // Replace with actual Render URL after deployment
 
-let BASE_URL = envApiUrl?.trim().length ? envApiUrl.trim() : null;
-
-// ✅ BACKEND CONNECTION - Smart Port Detection
-// Tries ports 5000-5010 to find backend server
-const findBackendPort = async () => {
-  if (BASE_URL) return BASE_URL; // Use env URL if available
-
-  for (let port = 5000; port <= 5010; port++) {
-    try {
-      const url = `http://${DEFAULT_HOST}:${port}/api/health`;
-      const response = await axios.get(url, { timeout: 500 });
-      if (response.status === 200) {
-        BASE_URL = `http://${DEFAULT_HOST}:${port}/api`;
-        console.log(`✅ Backend found on port ${port}`);
-        return BASE_URL;
-      }
-    } catch (e) {
-      // Port not responding, try next
+const getBaseUrl = () => {
+    if (__DEV__) {
+        return `http://${DEFAULT_HOST}:5000/api`;
     }
-  }
-
-  // Fallback to default
-  BASE_URL = `http://${DEFAULT_HOST}:5000/api`;
-  console.warn(`⚠️  Backend not found, using fallback: ${BASE_URL}`);
-  return BASE_URL;
+    return PRODUCTION_URL;
 };
 
-console.log(
-  `📱 Frontend: ${Platform.OS} | 🔌 Connecting to Backend: ${DEFAULT_HOST}...`,
-);
+let BASE_URL = getBaseUrl();
 
-if (!BASE_URL) {
-  BASE_URL = `http://${DEFAULT_HOST}:5000/api`;
-}
+// Remove discovery logic to prevent reload loops
+const getApiUrl = () => BASE_URL;
 
 const api = axios.create({
-  baseURL: BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-findBackendPort().then((url) => {
-  api.defaults.baseURL = url;
-  console.log(`✅ Backend connected: ${url}`);
+    headers: {
+        "Content-Type": "application/json",
+    },
 });
 
 api.interceptors.request.use(
-  async (config) => {
-    const token = await AsyncStorage.getItem("accessToken");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error),
+    async (config) => {
+        config.baseURL = getApiUrl();
+        
+        const token = await AsyncStorage.getItem("accessToken");
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error),
 );
 
 api.interceptors.response.use(
@@ -90,13 +58,22 @@ api.interceptors.response.use(
   },
   async (error) => {
     if (__DEV__) {
-      console.error(
-        "[API Error]:",
-        error.response?.status,
-        error.response?.data || error.message,
-        "URL:",
-        error.config?.url,
-      );
+      const url = error.config?.url || '';
+      const status = error.response?.status;
+
+      // Suppress expected 401 on /auth/me — this fires on startup when
+      // a stored token has expired. AuthContext already handles it silently.
+      const isExpectedAuthCheck = status === 401 && url.includes('/auth/me');
+
+      if (!isExpectedAuthCheck) {
+        console.error(
+          "[API Error]:",
+          status,
+          error.response?.data || error.message,
+          "URL:",
+          url,
+        );
+      }
     }
 
     const originalRequest = error.config;
