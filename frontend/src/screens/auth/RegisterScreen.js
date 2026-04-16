@@ -1,9 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,23 +13,33 @@ import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import SimpleInput from "../../components/SimpleInput";
 import { getShadow } from "../../utils/theme";
+import AdaptiveScrollView from "../../components/AdaptiveScrollView";
 
-export default function RegisterScreen({ navigation }) {
+export default function RegisterScreen({ route, navigation }) {
+  const googleData = route.params?.googleData;
+  const { theme, isDark } = useAppTheme();
+  
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
+    name: googleData?.name || "",
+    email: googleData?.email || "",
     password: "",
     phoneNumber: "",
     collegeName: "",
+    role: "User", // Default role
   });
   const [isLoading, setIsLoading] = useState(false);
   const { signup } = useAuth();
-  const { theme, isDark } = useAppTheme();
+
+  const updateField = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleRegister = async () => {
     Keyboard.dismiss();
-    const { name, email, password, phoneNumber, collegeName } = formData;
-    if (!name || !email || !password || !phoneNumber || !collegeName) {
+    const { name, email, password, phoneNumber, collegeName, role } = formData;
+    
+    // If googleData exists, password isn't strictly required for signup logic if backend handles it
+    if (!name || !email || (!password && !googleData) || !phoneNumber || !collegeName) {
       Alert.alert("Required", "Please fill in all fields to continue.");
       return;
     }
@@ -42,57 +49,86 @@ export default function RegisterScreen({ navigation }) {
 
     setIsLoading(true);
     try {
-      const result = await signup({ ...formData, phoneNumber: formattedPhone });
+      const result = await signup({ 
+        ...formData, 
+        phoneNumber: formattedPhone,
+        googleId: googleData?.googleId, // Link google account
+        avatar: googleData?.avatar
+      });
       setIsLoading(false);
-      if (result.success) {
-        // Navigation is handled automatically by AuthContext updating the user state
-      } else {
+      if (!result.success) {
         Alert.alert("Sign Up Error", result.message || "Could not create account.");
       }
     } catch (e) {
       setIsLoading(false);
-      Alert.alert("Network Error", "Unable to reach server. Please check your connection.");
+      Alert.alert("Network Error", "Unable to reach server.");
     }
   };
 
-  const updateField = (name, value) => setFormData(prev => ({ ...prev, [name]: value }));
-
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+    <AdaptiveScrollView 
+      contentContainerStyle={styles.scroll} 
+      keyboardShouldPersistTaps="handled"
+    >
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>Join the hub</Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>Verified campus-only marketplace</Text>
-          </View>
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>
+            {googleData ? "Complete Profile" : "Join the hub"}
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
+            {googleData ? "Just a few more details to get started" : "Verified campus-only marketplace"}
+          </Text>
+        </View>
 
-          <View style={[styles.formCard, { backgroundColor: theme.colors.card, borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-            <SimpleInput label="Full Name" value={formData.name} onChangeText={v => updateField('name', v)} placeholder="John Doe" />
-            <SimpleInput label="University Email" value={formData.email} onChangeText={v => updateField('email', v.toLowerCase())} keyboardType="email-address" placeholder="john@university.edu" />
+        <View style={[styles.formCard, { backgroundColor: theme.colors.card, borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+          <SimpleInput label="Full Name" value={formData.name} onChangeText={v => updateField('name', v)} placeholder="John Doe" editable={!googleData} />
+          <SimpleInput label="University Email" value={formData.email} onChangeText={v => updateField('email', v.toLowerCase())} keyboardType="email-address" placeholder="john@university.edu" editable={!googleData} />
+          
+          {!googleData && (
             <SimpleInput label="Create Password" value={formData.password} onChangeText={v => updateField('password', v)} secureTextEntry showPasswordToggle placeholder="Min 6 characters" />
-            <SimpleInput label="Mobile Number" value={formData.phoneNumber} onChangeText={v => updateField('phoneNumber', v)} keyboardType="phone-pad" placeholder="9876543210" />
-            <SimpleInput label="College Name" value={formData.collegeName} onChangeText={v => updateField('collegeName', v)} placeholder="IIT Delhi" />
+          )}
 
+          <SimpleInput label="Mobile Number" value={formData.phoneNumber} onChangeText={v => updateField('phoneNumber', v)} keyboardType="phone-pad" placeholder="9876543210" />
+          <SimpleInput label="College Name" value={formData.collegeName} onChangeText={v => updateField('collegeName', v)} placeholder="IIT Delhi" />
+
+          {/* Role Selection */}
+          <Text style={[styles.label, { color: theme.colors.textDim }]}>I am a...</Text>
+          <View style={styles.roleRow}>
             <TouchableOpacity 
-              style={[
-                styles.button, 
-                { backgroundColor: theme.colors.primary }, 
-                getShadow(theme.colors.primary, { width: 0, height: 4 }, 0.2, 6)
-              ]} 
-              onPress={handleRegister} 
-              disabled={isLoading}
+              style={[styles.roleBtn, { backgroundColor: formData.role === 'User' ? theme.colors.primary : theme.colors.cardAlt }]}
+              onPress={() => updateField('role', 'User')}
             >
-              {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+              <Text style={[styles.roleBtnText, { color: formData.role === 'User' ? '#FFF' : theme.colors.text }]}>Student</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.roleBtn, { backgroundColor: formData.role === 'Provider' ? theme.colors.accent : theme.colors.cardAlt }]}
+              onPress={() => updateField('role', 'Provider')}
+            >
+              <Text style={[styles.roleBtnText, { color: formData.role === 'Provider' ? '#FFF' : theme.colors.text }]}>Provider</Text>
             </TouchableOpacity>
           </View>
 
+          <TouchableOpacity 
+            style={[
+              styles.button, 
+              { backgroundColor: theme.colors.primary }, 
+              getShadow(theme.colors.primary, { width: 0, height: 4 }, 0.2, 6)
+            ]} 
+            onPress={handleRegister} 
+            disabled={isLoading}
+          >
+            {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{googleData ? "Get Started" : "Create Account"}</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {!googleData && (
           <TouchableOpacity onPress={() => navigation.navigate("Login")} style={styles.footer}>
             <Text style={[styles.footerText, { color: theme.colors.textMuted }]}>Already have an account? <Text style={[styles.bold, { color: theme.colors.accent }]}>Sign in</Text></Text>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        )}
+      </View>
+    </AdaptiveScrollView>
   );
 }
 
@@ -115,6 +151,11 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: "#FFF", fontSize: 17, fontWeight: "700" },
   
+  label: { fontSize: 13, fontWeight: '700', marginBottom: 8, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  roleRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
+  roleBtn: { flex: 1, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
+  roleBtnText: { fontWeight: '800', fontSize: 13, textTransform: 'uppercase' },
+
   footer: { marginTop: 32, alignItems: "center" },
   footerText: { fontSize: 15 },
   bold: { fontWeight: "700" }

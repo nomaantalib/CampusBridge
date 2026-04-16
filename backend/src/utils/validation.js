@@ -1,7 +1,7 @@
 const Joi = require('joi');
 
 const FARE_CONFIG = {
-    PRINTOUT_MIN: 15,
+    PRINTOUT_MIN: 20,
     FOOD_MIN: 30,
     STATIONERY_MIN: 20,
 };

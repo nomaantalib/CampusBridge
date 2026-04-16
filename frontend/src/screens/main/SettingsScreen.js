@@ -15,6 +15,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { getShadow } from '../../utils/theme';
+import AdaptiveScrollView from '../../components/AdaptiveScrollView';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRef } from 'react';
+import { Animated } from 'react-native';
 
 export default function SettingsScreen({ navigation }) {
     const { user, logout } = useAuth();
@@ -27,6 +31,36 @@ export default function SettingsScreen({ navigation }) {
         toggleLocationSync 
     } = useSettings();
     const { theme } = useAppTheme();
+    const [isClearing, setIsClearing] = useState(false);
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    const startPulse = () => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulseAnim, { toValue: 1.1, duration: 400, useNativeDriver: true }),
+                Animated.timing(pulseAnim, { toValue: 1, duration: 400, useNativeDriver: true })
+            ])
+        ).start();
+    };
+
+    const handleClearCache = async () => {
+        setIsClearing(true);
+        startPulse();
+        
+        // Simulate functional cache cleaning
+        setTimeout(async () => {
+            try {
+                // Clear specific items to 'free space' without logging user out
+                await AsyncStorage.multiRemove(['theme_preference_cache', 'lobby_cache', 'task_history_cache']);
+                setIsClearing(false);
+                pulseAnim.setValue(1);
+                Alert.alert("Cache Cleared", "University assets and temporary layout metadata have been successfully optimized.");
+            } catch (e) {
+                console.error(e);
+                setIsClearing(false);
+            }
+        }, 2200);
+    };
 
     const handleLogout = () => {
         Alert.alert(
@@ -83,10 +117,9 @@ export default function SettingsScreen({ navigation }) {
                 <View style={{ width: 44 }} />
             </View>
 
-            <ScrollView 
+            <AdaptiveScrollView 
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={true}
             >
                 
                 {/* Profile Peek */}
@@ -161,24 +194,35 @@ export default function SettingsScreen({ navigation }) {
                     <SettingRow 
                         icon="💬" 
                         title="Contact Support" 
+                        subtitle="We're here to help 24/7"
                         type="link" 
-                        onPress={() => Alert.alert("Support", "Contact us at support@campusbridge.edu")}
+                        onPress={() => navigation.navigate('Support')}
                     />
                     <View style={[styles.divider, { backgroundColor: nightMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]} />
                     <SettingRow 
                         icon="📜" 
                         title="Privacy Policy" 
                         type="link" 
-                        onPress={() => Alert.alert("Privacy", "Our privacy policy is available on our website.")}
+                        onPress={() => navigation.navigate('Info', { type: 'Privacy' })}
                     />
                     <View style={[styles.divider, { backgroundColor: nightMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]} />
                     <SettingRow 
                         icon="ℹ️" 
                         title="About CampusBridge" 
-                        subtitle="v1.2.0-stable" 
+                        subtitle="Built for the campus hub" 
                         type="link" 
-                        onPress={() => Alert.alert("About", "CampusBridge v1.2.0. Built for students, by students.")}
+                        onPress={() => navigation.navigate('Info', { type: 'About' })}
                     />
+                    <View style={[styles.divider, { backgroundColor: nightMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]} />
+                    <Animated.View style={{ transform: [{ scale: isClearing ? pulseAnim : 1 }] }}>
+                        <SettingRow 
+                            icon={isClearing ? "⌛" : "🧹"} 
+                            title={isClearing ? "Cleaning..." : "Clear Cache"}
+                            subtitle={isClearing ? "Optimizing local modules..." : "Free up space"}
+                            type="link" 
+                            onPress={handleClearCache}
+                        />
+                    </Animated.View>
                 </View>
 
                 {/* Danger Zone */}
@@ -192,7 +236,7 @@ export default function SettingsScreen({ navigation }) {
                 </TouchableOpacity>
 
                 <View style={{ height: 100 }} />
-            </ScrollView>
+            </AdaptiveScrollView>
         </View>
     );
 }

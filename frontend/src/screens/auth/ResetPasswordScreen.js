@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, S
 import api from '../../services/api';
 import SimpleInput from '../../components/SimpleInput';
 import { useAppTheme } from '../../context/ThemeContext';
+import AdaptiveScrollView from '../../components/AdaptiveScrollView';
 
 export default function ResetPasswordScreen({ route, navigation }) {
     const { email } = route.params;
@@ -30,26 +31,24 @@ export default function ResetPasswordScreen({ route, navigation }) {
     };
 
     return (
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+        <AdaptiveScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-                <View style={styles.content}>
-                    <Text style={[styles.title, { color: theme.colors.text }]}>New Password</Text>
-                    <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>Enter the code sent to {email}</Text>
+            <View style={styles.content}>
+                <Text style={[styles.title, { color: theme.colors.text }]}>New Password</Text>
+                <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>Enter the code sent to {email}</Text>
 
-                    <SimpleInput label="6-Digit OTP" value={otp} onChangeText={setOtp} keyboardType="number-pad" />
-                    <SimpleInput label="New Password" value={password} onChangeText={setPassword} secureTextEntry showPasswordToggle />
+                <SimpleInput label="6-Digit OTP" value={otp} onChangeText={setOtp} keyboardType="number-pad" />
+                <SimpleInput label="New Password" value={password} onChangeText={setPassword} secureTextEntry showPasswordToggle />
 
-                    <TouchableOpacity 
-                        style={[styles.button, { backgroundColor: theme.colors.primary }, isLoading ? { opacity: 0.7 } : null]} 
-                        onPress={handleReset} 
-                        disabled={isLoading}
-                    >
-                        {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Reset Password</Text>}
-                    </TouchableOpacity>
-                </View>
-            </ScrollView>
-        </KeyboardAvoidingView>
+                <TouchableOpacity 
+                    style={[styles.button, { backgroundColor: theme.colors.primary }, isLoading ? { opacity: 0.7 } : null]} 
+                    onPress={handleReset} 
+                    disabled={isLoading}
+                >
+                    {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Reset Password</Text>}
+                </TouchableOpacity>
+            </View>
+        </AdaptiveScrollView>
     );
 }
 

@@ -29,7 +29,7 @@ const FUNKY_THOUGHTS = [
     "Just here for the lore 📚"
 ];
 
-export default function FloatingUser({ user, onAction, containerWidth, containerHeight }) {
+function FloatingUser({ user, onAction, containerWidth, containerHeight }) {
   const anim = useRef(new Animated.ValueXY({
     x: Math.random() * (containerWidth - 100),
     y: Math.random() * (containerHeight - 150)
@@ -45,23 +45,30 @@ export default function FloatingUser({ user, onAction, containerWidth, container
 
   useEffect(() => {
     // Fade in
-    Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: false }).start();
+    Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
 
-    // Thought bubble pop in
-    Animated.spring(thoughtScale, { toValue: 1, friction: 3, delay: 1000, useNativeDriver: false }).start();
+    // Staggered start – prevents all users starting animation at the same millisecond
+    const startDelay = Math.random() * 2000;
+    
+    const driftTimeout = setTimeout(() => {
+        // Thought bubble pop in
+        Animated.spring(thoughtScale, { toValue: 1, friction: 3, useNativeDriver: true }).start();
 
-    // Floating bubble drift animation loop
-    const move = () => {
-      Animated.timing(anim, {
-        toValue: {
-          x: Math.random() * (containerWidth - 100),
-          y: Math.random() * (containerHeight - 150)
-        },
-        duration: 10000 + Math.random() * 5000,
-        useNativeDriver: false
-      }).start(() => move());
-    };
-    move();
+        // Floating bubble drift animation loop - Slightly slower for web stability
+        const move = () => {
+          Animated.timing(anim, {
+            toValue: {
+              x: Math.random() * (containerWidth - 100),
+              y: Math.random() * (containerHeight - 150)
+            },
+            duration: 12000 + Math.random() * 6000,
+            useNativeDriver: true
+          }).start(() => move());
+        };
+        move();
+    }, startDelay);
+
+    return () => clearTimeout(driftTimeout);
   }, []);
 
   const color = (user?.id) ? COLORS[Math.abs(getHashCode(user.id.toString()) % COLORS.length)] : '#94A3B8';
@@ -88,8 +95,6 @@ export default function FloatingUser({ user, onAction, containerWidth, container
   );
 }
 
-
-
 const styles = StyleSheet.create({
   avatarWrap: { position: 'absolute', alignItems: 'center', width: 120 },
   avatar: { 
@@ -114,3 +119,5 @@ const styles = StyleSheet.create({
       marginTop: -1
   }
 });
+
+export default React.memo(FloatingUser);

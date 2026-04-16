@@ -31,9 +31,14 @@ exports.protect = async (req, res, next) => {
         const useDb = mongoose.connection && mongoose.connection.readyState === 1;
 
         if (useDb) {
-            req.user = await User.findById(decoded.id);
+            req.user = await User.findById(decoded.id).select('-avatar -password');
         } else {
-            req.user = await memoryDb.findUserById(decoded.id);
+            const memUser = await memoryDb.findUserById(decoded.id);
+            if (memUser) {
+                // Return a clean clone for memory user
+                const { password, avatar, ...cleanUser } = memUser;
+                req.user = cleanUser;
+            }
         }
 
         if (!req.user) {

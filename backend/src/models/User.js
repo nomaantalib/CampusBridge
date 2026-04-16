@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema({
     },
     password: {
         type: String,
-        required: [true, 'Please add a password'],
+        required: false, // Optional for social login
         minlength: 6,
         select: false,
     },
@@ -38,8 +38,13 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['User', 'Admin', 'Requester', 'Server'],
+        enum: ['User', 'Admin', 'Requester', 'Server', 'Student', 'Provider'],
         default: 'User',
+    },
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true,
     },
     campusId: {
         type: mongoose.Schema.ObjectId,
@@ -78,13 +83,13 @@ userSchema.index({ campusId: 1 });
 userSchema.index({ role: 1 });
 
 // Encrypt password using bcrypt
-    userSchema.pre('save', async function () {
-        if (!this.isModified('password')) {
-            return;
-        }
-        const salt = await bcrypt.genSalt(10);
-        this.password = await bcrypt.hash(this.password, salt);
-    });
+userSchema.pre('save', async function () {
+    if (!this.isModified('password')) {
+        return;
+    }
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+});
 
 // Match user entered password to hashed password in database
 userSchema.methods.matchPassword = async function (enteredPassword) {

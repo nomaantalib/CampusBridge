@@ -13,7 +13,7 @@ if (Platform.OS !== 'web') {
     }
 }
 
-export const useLocationSync = (user) => {
+export const useLocationSync = (user, taskId = null) => {
     const watchId = useRef(null);
     const { locationSync } = useSettings();
 
@@ -36,6 +36,7 @@ export const useLocationSync = (user) => {
                         role: user.role,
                         latitude: pos.coords.latitude,
                         longitude: pos.coords.longitude,
+                        taskId: taskId
                     });
                 },
                 (err) => {
@@ -94,6 +95,7 @@ export const useLocationSync = (user) => {
                             role: user.role,
                             latitude,
                             longitude,
+                            taskId: taskId
                         });
                     }
                 );
@@ -111,5 +113,5 @@ export const useLocationSync = (user) => {
                 watchId.current = null;
             }
         };
-    }, [user?.id, locationSync]);
+    }, [user?.id, locationSync, taskId]);
 };

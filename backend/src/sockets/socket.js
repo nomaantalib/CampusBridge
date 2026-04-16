@@ -4,7 +4,6 @@ const initializeSocket = (server) => {
     const io = new Server(server, {
         cors: { origin: '*', methods: ['GET', 'POST'] },
     });
-
     // Track online users globally: userId -> { campusId, socketIds: Set, userData }
     const onlineUsers = new Map();
     // Track user locations: userId -> { lat, lng, role, name, updatedAt }

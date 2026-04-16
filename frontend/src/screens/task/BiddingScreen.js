@@ -10,7 +10,8 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
-    Animated
+    Animated,
+    StatusBar
 } from 'react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -44,6 +45,8 @@ export default function BiddingScreen({ route, navigation }) {
     const pulseAnim = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
+        let activeSocket = null;
+
         const pulse = () => {
             Animated.sequence([
                 Animated.timing(pulseAnim, { toValue: 1.05, duration: 1000, useNativeDriver: false }),
@@ -55,7 +58,10 @@ export default function BiddingScreen({ route, navigation }) {
         const initSocket = async () => {
             const io = await socket.connect();
             if (!io) return;
+            activeSocket = io;
+            
             socket.joinTask(task._id);
+            
             socket.onNewBid(data => {
                 if (data.taskId === task._id) {
                     setTask(prev => ({ 
@@ -65,19 +71,21 @@ export default function BiddingScreen({ route, navigation }) {
                     }));
                 }
             });
+
             io.on('taskStatusUpdated', ({taskId, status}) => {
                 if (taskId === task._id) {
                     setTask(prev => ({...prev, status}));
                 }
             });
         };
+
         initSocket();
 
         return () => {
-            const io = socket.socket;
-            if (io) {
-                io.off('new-bid');
-                io.off('taskStatusUpdated');
+            if (activeSocket) {
+                activeSocket.off('new-bid');
+                activeSocket.off('taskStatusUpdated');
+                console.log("[Bidding] Cleaned up socket listeners for task:", task._id);
             }
         };
     }, [task._id]);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -9,7 +9,9 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
+  ScrollView,
 } from "react-native";
+import AdaptiveScrollView from "../../components/AdaptiveScrollView";
 import FloatingUser from "../../components/FloatingUser";
 import { useAuth } from "../../context/AuthContext";
 import { useSettings } from "../../context/SettingsContext";
@@ -91,7 +93,9 @@ export default function HomeScreen({ navigation }) {
           setIncomingRequest(task);
           Animated.spring(requestPopAnim, {
             toValue: 1,
-            useNativeDriver: false,
+            useNativeDriver: true,
+            friction: 8,
+            tension: 40
           }).start();
         }
       });
@@ -132,6 +136,17 @@ export default function HomeScreen({ navigation }) {
   const [typewrittenText, setTypewrittenText] = useState("");
   const fullText = "CampusBridge";
 
+  // Memoized list of floating users — must be called here (top-level), not inside JSX
+  const floatingUsers = useMemo(() => onlineUsers.map((u) => (
+    <FloatingUser
+      key={u.id}
+      user={u}
+      containerWidth={width}
+      containerHeight={height * 0.8}
+      onAction={setIncomingRequest}
+    />
+  )), [onlineUsers, width, height]);
+
   useEffect(() => {
     // Heartbeat alpha transparency animation
     Animated.loop(
@@ -139,12 +154,12 @@ export default function HomeScreen({ navigation }) {
         Animated.timing(brandOpacity, {
           toValue: 1,
           duration: 1500,
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
         Animated.timing(brandOpacity, {
           toValue: 0.4,
           duration: 1500,
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
       ]),
     ).start();
@@ -231,27 +246,28 @@ export default function HomeScreen({ navigation }) {
         <Text style={[styles.mapToggleBtnText, { color: theme.colors.accent }]}>🗺️ VIEW MAP</Text>
       </TouchableOpacity>
 
-      <View style={styles.lobbyArea}>
-        {onlineUsers.map((u) => (
-          <FloatingUser
-            key={u.id}
-            user={u}
-            containerWidth={width}
-            containerHeight={height * 0.7}
-            onAction={setIncomingRequest}
-          />
-        ))}
-      </View>
-
-      {/* Empty State */}
-      {onlineUsers.length === 0 && (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>🧊</Text>
-          <Text style={[styles.empty, { color: theme.colors.textMuted }]}>
-            You're the only one here. Waiting for friends...
-          </Text>
+      <AdaptiveScrollView 
+        style={styles.lobbyScroll} 
+        contentContainerStyle={styles.lobbyContent}
+        showsVerticalScrollIndicator={true}
+      >
+        <View style={styles.lobbyArea}>
+          {floatingUsers}
         </View>
-      )}
+
+        {/* Empty State */}
+        {onlineUsers.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>🧊</Text>
+            <Text style={[styles.empty, { color: theme.colors.textMuted }]}>
+              You're the only one here. Waiting for friends...
+            </Text>
+          </View>
+        )}
+        
+        {/* Buffer for broadcast button */}
+        <View style={{ height: 120 }} />
+      </AdaptiveScrollView>
 
       {/* Custom Interactive Broadcast Button */}
       <TouchableOpacity
@@ -361,7 +377,9 @@ const styles = StyleSheet.create({
   },
   activityBtnText: { fontSize: 16 },
 
-  lobbyArea: { flex: 1 },
+  lobbyScroll: { flex: 1 },
+  lobbyContent: { flexGrow: 1, minHeight: 800 },
+  lobbyArea: { flex: 1, minHeight: 800 },
 
   broadcastBtn: {
     position: "absolute",

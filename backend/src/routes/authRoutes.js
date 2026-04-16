@@ -5,7 +5,9 @@ const User = require('../models/User');
 const { signupSchema, loginSchema } = require('../utils/validation');
 const memoryDb = require('../utils/memoryDb');
 const { protect } = require('../middleware/auth');
+const { OAuth2Client } = require('google-auth-library');
 
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const router = express.Router();
 
 // Generate Tokens
@@ -136,8 +138,16 @@ router.post('/login', async (req, res, next) => {
             if (!user) {
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
             }
-            isMatch = await user.matchPassword(password);
+            console.log('[Auth] Database user found, matching password...');
+            try {
+                isMatch = await user.matchPassword(password);
+                console.log('[Auth] Password match result:', isMatch);
+            } catch (matchErr) {
+                console.error('[Auth] matchPassword CRASH:', matchErr);
+                throw new Error('Password verification failed internally');
+            }
         } else {
+            console.log('[Auth] Using memory database for login:', email);
             user = await memoryDb.findUserByEmail(email);
             if (!user) {
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -146,6 +156,7 @@ router.post('/login', async (req, res, next) => {
         }
 
         if (!isMatch) {
+            console.log('[Auth] Password mismatch for:', email);
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
@@ -160,11 +171,13 @@ router.post('/login', async (req, res, next) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                avatar: user.avatar,
                 campusId: user.campusId,
                 collegeName: user.collegeName
             }
         });
     } catch (err) {
+        console.error('[Auth Login] CRASH:', err);
         next(err);
     }
 });
@@ -225,6 +238,86 @@ router.get('/me', protect, async (req, res, next) => {
 });
 
 // @desc    Update user profile
+// @route   POST /api/auth/google
+// @desc    Register or Login with Google
+// @access  Public
+router.post('/google', async (req, res) => {
+    try {
+        const { idToken } = req.body;
+        if (!idToken) return res.status(400).json({ success: false, message: 'ID Token required' });
+
+        // Verify Google token
+        // Note: For development, we skip intense verification if no client ID is set, 
+        // but for production, this MUST use the client ticket.
+        let payload;
+        try {
+            const ticket = await client.verifyIdToken({
+                idToken,
+                audience: process.env.GOOGLE_CLIENT_ID
+            });
+            payload = ticket.getPayload();
+        } catch (e) {
+            // Fallback for dev if client ID isn't set yet - allow testing the flow
+            if (!process.env.GOOGLE_CLIENT_ID) {
+                console.warn('[AUTH] Skipping Google Token verification (No GOOGLE_CLIENT_ID found)');
+                // Simulate payload from token parts (danger: only for dev bypass)
+                const parts = idToken.split('.');
+                if (parts.length === 3) {
+                    payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+                }
+            } else {
+                throw e;
+            }
+        }
+
+        const { email, name, picture, sub: googleId } = payload;
+        
+        let user;
+        if (useDb) {
+            user = await User.findOne({ email: email.toLowerCase() });
+        } else {
+            user = await memoryDb.findUserByEmail(email);
+        }
+
+        // Strategy: If user doesn't exist, return special flag for frontend to complete profile
+        if (!user) {
+            return res.status(200).json({
+                success: true,
+                isNewUser: true,
+                userData: {
+                    email,
+                    name,
+                    avatar: picture,
+                    googleId
+                }
+            });
+        }
+
+        // Existing user - send token
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+        res.status(200).json({
+            success: true,
+            isNewUser: false,
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                avatar: user.avatar,
+                walletBalance: user.walletBalance,
+                isVerified: user.isVerified,
+                collegeName: user.collegeName
+            }
+        });
+
+    } catch (err) {
+        console.error('[Google Auth] Error:', err);
+        res.status(500).json({ success: false, message: 'Google Authentication failed' });
+    }
+});
+
 // @route   PATCH /api/auth/me
 // @access  Private
 router.patch('/me', protect, async (req, res, next) => {
@@ -235,13 +328,12 @@ router.patch('/me', protect, async (req, res, next) => {
         let user;
 
         if (useDb) {
-            user = await User.findById(req.user._id);
+            user = await User.findByIdAndUpdate(
+                req.user._id,
+                { $set: { name, avatar } },
+                { new: true, runValidators: true }
+            );
             if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-
-            if (name) user.name = name;
-            if (avatar) user.avatar = avatar;
-
-            await user.save();
         } else {
             user = await memoryDb.findUserById(req.user._id);
             if (!user) return res.status(404).json({ success: false, message: 'User not found' });

@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
+import AdaptiveScrollView from '../../components/AdaptiveScrollView';
 
 export default function EditProfileScreen({ navigation }) {
     const { user, updateUser } = useAuth();
@@ -83,7 +84,7 @@ export default function EditProfileScreen({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={styles.scroll}>
+            <AdaptiveScrollView contentContainerStyle={styles.scroll}>
                 <View style={styles.avatarSection}>
                     <TouchableOpacity onPress={pickImage} style={styles.avatarWrapper}>
                         {avatar ? (
@@ -118,7 +119,7 @@ export default function EditProfileScreen({ navigation }) {
                         <Text style={[styles.label, { color: theme.colors.textDim }]}>University / Campus</Text>
                         <TextInput
                             style={[styles.input, { backgroundColor: theme.colors.card, color: theme.colors.text, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}
-                            value={campus}
+                            value={user?.collegeName || user?.campusId || ''}
                             editable={false}
                             placeholder="Campus ID"
                             placeholderTextColor={theme.colors.textMuted}
@@ -134,8 +135,10 @@ export default function EditProfileScreen({ navigation }) {
                             editable={false}
                         />
                     </View>
+
+                    <View style={{ height: 40 }} />
                 </View>
-            </ScrollView>
+            </AdaptiveScrollView>
         </View>
     );
 }

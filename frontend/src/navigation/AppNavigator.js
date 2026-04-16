@@ -17,12 +17,10 @@ import ActivityScreen from '../screens/main/ActivityScreen';
 import LobbyMapScreen from '../screens/main/LobbyMapScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import EditProfileScreen from '../screens/main/EditProfileScreen';
+import InfoScreen from '../screens/main/InfoScreen';
+import SupportScreen from '../screens/main/SupportScreen';
 
 const Stack = createStackNavigator();
-
-// Smooth slide-from-right for auth stack, and from-bottom for modals
-const authTransition  = TransitionPresets.SlideFromRightIOS;
-const modalTransition = TransitionPresets.ModalSlideFromBottomIOS;
 
 export default function AppNavigator() {
     const { user, loading } = useAuth();
@@ -30,36 +28,18 @@ export default function AppNavigator() {
 
     if (loading) {
         return (
-            <View style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor: theme?.colors?.bg || '#0F172A' }}>
-                <ActivityIndicator size="large" color={theme?.colors?.primary || '#2563EB'} />
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg }}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
             </View>
         );
     }
-
-    const commonHeaderOptions = {
-        headerShown: true,
-        headerStyle: { 
-            backgroundColor: theme.colors.card,
-            elevation: 0,
-            shadowOpacity: 0,
-            borderBottomWidth: 1,
-            borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
-        },
-        headerTintColor: theme.colors.text,
-        headerTitleStyle: { fontWeight: '800', fontSize: 16 },
-        headerBackTitleVisible: false,
-    };
 
     return (
         <Stack.Navigator
             initialRouteName={user ? 'Home' : 'Login'}
             screenOptions={{
                 headerShown: false,
-                gestureEnabled: true,
-                style: { pointerEvents: 'auto' },
-                presentation: 'card',
                 cardStyle: { backgroundColor: theme.colors.bg },
-                ...TransitionPresets.SlideFromRightIOS,
             }}
         >
             {user ? (
@@ -74,35 +54,25 @@ export default function AppNavigator() {
                         name="CreateTask"
                         component={CreateTaskScreen}
                         options={{
-                            ...commonHeaderOptions,
+                            headerShown: true,
                             title: 'Post a Task',
                             presentation: 'modal',
-                            ...TransitionPresets.ModalSlideFromBottomIOS,
                         }}
                     />
                     <Stack.Screen
                         name="Bidding"
                         component={BiddingScreen}
-                        options={{
-                            ...commonHeaderOptions,
-                            title: 'Task Details',
-                        }}
+                        options={{ headerShown: true, title: 'Task Details' }}
                     />
                     <Stack.Screen
                         name="Tracking"
                         component={TrackingScreen}
-                        options={{
-                            ...commonHeaderOptions,
-                            title: 'Live Tracking',
-                        }}
+                        options={{ headerShown: true, title: 'Live Tracking' }}
                     />
                     <Stack.Screen
                         name="Wallet"
                         component={WalletScreen}
-                        options={{
-                            ...commonHeaderOptions,
-                            title: 'My Wallet',
-                        }}
+                        options={{ headerShown: true, title: 'My Wallet' }}
                     />
                     <Stack.Screen
                         name="Activity"
@@ -129,17 +99,27 @@ export default function AppNavigator() {
                         component={EditProfileScreen}
                         options={{ headerShown: false }}
                     />
+                    <Stack.Screen
+                        name="Info"
+                        component={InfoScreen}
+                        options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                        name="Support"
+                        component={SupportScreen}
+                        options={{ headerShown: false }}
+                    />
                 </>
             ) : (
                 // ── Auth stack ───────────────────────────────────────────────
                 <>
-                    <Stack.Screen name="Login"    component={LoginScreen}   />
+                    <Stack.Screen name="Login" component={LoginScreen} />
                     <Stack.Screen name="Register" component={RegisterScreen} />
                     <Stack.Screen
                         name="ForgotPassword"
                         component={ForgotPasswordScreen}
                         options={{
-                            ...commonHeaderOptions,
+                            headerShown: true,
                             title: 'Reset Password',
                         }}
                     />
@@ -147,7 +127,7 @@ export default function AppNavigator() {
                         name="ResetPassword"
                         component={ResetPasswordScreen}
                         options={{
-                            ...commonHeaderOptions,
+                            headerShown: true,
                             title: 'New Password',
                         }}
                     />

@@ -81,8 +81,9 @@ export default function LobbyMapScreen({ navigation }) {
         setSelectedUser(u);
         RNAnimated.spring(slideAnim, {
             toValue: 0,
-            useNativeDriver: false,
-            friction: 8
+            useNativeDriver: true,
+            friction: 8,
+            tension: 40
         }).start();
     };
 
@@ -90,7 +91,7 @@ export default function LobbyMapScreen({ navigation }) {
         RNAnimated.timing(slideAnim, {
             toValue: height,
             duration: 300,
-            useNativeDriver: false
+            useNativeDriver: true
         }).start(() => setSelectedUser(null));
     };
 
@@ -146,20 +147,42 @@ export default function LobbyMapScreen({ navigation }) {
                         coordinate={{ latitude: u.latitude, longitude: u.longitude }}
                         onPress={() => onMarkerPress(u)}
                     >
-                        <View style={[
-                            styles.marker, 
-                            { backgroundColor: u.role === 'Server' ? theme.colors.success : theme.colors.primary, borderColor: isDark ? '#FFF' : '#000' }
-                        ]}>
-                            {u.avatar ? (
-                                <View style={styles.avatarMiniWrapper}>
-                                    <View style={styles.avatarMiniText}><Text style={styles.markerText}>{u.name?.charAt(0)}</Text></View>
-                                </View>
-                            ) : (
-                                <Text style={styles.markerText}>{u.name?.charAt(0).toUpperCase()}</Text>
-                            )}
+                        <View style={styles.markerContainer}>
+                            <View style={[
+                                styles.marker, 
+                                { backgroundColor: u.role === 'Server' ? theme.colors.success : theme.colors.primary, borderColor: isDark ? '#FFF' : '#000' }
+                            ]}>
+                                {u.avatar ? (
+                                    <View style={styles.avatarMiniWrapper}>
+                                        <Image source={{ uri: u.avatar.includes(':') ? u.avatar : `data:image/jpeg;base64,${u.avatar}` }} style={styles.avatarMiniImg} />
+                                    </View>
+                                ) : (
+                                    <Text style={styles.markerText}>{u.name?.charAt(0).toUpperCase()}</Text>
+                                )}
+                            </View>
+                            <View style={[styles.labelBadge, { backgroundColor: u.role === 'Server' ? theme.colors.success : theme.colors.primary }]}>
+                                <Text style={styles.labelBadgeText}>{u.role === 'Server' ? 'PARTNER' : 'USER'}</Text>
+                            </View>
                         </View>
                     </Marker>
                 ))}
+
+                {/* Own Location Marker */}
+                {user && region && (
+                    <Marker
+                        coordinate={{ latitude: region.latitude, longitude: region.longitude }}
+                    >
+                        <View style={[styles.marker, styles.ownMarker, { backgroundColor: theme.colors.accent, borderColor: '#FFF' }]}>
+                            {user.avatar ? (
+                                <View style={styles.avatarMiniWrapper}>
+                                <Image source={{ uri: user.avatar.includes(':') ? user.avatar : `data:image/jpeg;base64,${user.avatar}` }} style={styles.avatarMiniImg} />
+                                </View>
+                            ) : (
+                                <Text style={styles.markerText}>ME</Text>
+                            )}
+                        </View>
+                    </Marker>
+                )}
             </MapView>
 
             <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -217,6 +240,14 @@ const styles = StyleSheet.create({
         borderRadius: 20, ...getShadow('#000', { width: 0, height: 4 }, 0.2, 5)
     },
     backBtnText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
+    markerContainer: { alignItems: 'center', justifyContent: 'center' },
+    labelBadge: { 
+        paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, 
+        marginTop: -4, borderWidth: 1, borderColor: '#FFF',
+        ...getShadow('#000', { width: 0, height: 2 }, 0.2, 3),
+        zIndex: 5
+    },
+    labelBadgeText: { color: '#FFF', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
 
     locateBtn: {
         position: 'absolute', bottom: 30, right: 30,
@@ -236,6 +267,12 @@ const styles = StyleSheet.create({
     markerText: { color: '#FFF', fontWeight: '900', fontSize: 14 },
     avatarMiniWrapper: { width: '100%', height: '100%', borderRadius: 20, overflow: 'hidden' },
     avatarMiniText: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    avatarMiniImg: { width: '100%', height: '100%' },
+    ownMarker: {
+        borderWidth: 3,
+        transform: [{ scale: 1.2 }],
+        zIndex: 100,
+    },
 
     overlay: {
         position: 'absolute', bottom: 0, left: 0, right: 0,

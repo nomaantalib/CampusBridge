@@ -15,9 +15,8 @@ import { useAppTheme } from '../../context/ThemeContext';
 import SimpleInput from '../../components/SimpleInput';
 import api from '../../services/api';
 import { getShadow } from '../../utils/theme';
-
 const CATEGORIES = [
-    { name: 'Printout', min: 15, icon: '📄' },
+    { name: 'Printout', min: 20, icon: '📄' },
     { name: 'Food', min: 30, icon: '🍔' },
     { name: 'Stationery', min: 20, icon: '✏️' },
 ];
@@ -90,6 +89,7 @@ export default function CreateTaskScreen({ navigation }) {
                         placeholder="e.g. Bro starving 😭 need food" 
                         value={description} 
                         onChangeText={setDescription}
+                        autoFocus={true}
                         containerStyle={{ backgroundColor: theme.colors.card, color: theme.colors.text }}
                     />
                     <View style={styles.pillContainer}>

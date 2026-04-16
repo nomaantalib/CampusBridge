@@ -12,28 +12,25 @@ import {
     Animated as RNAnimated
 } from 'react-native';
 import { useAppTheme } from '../../context/ThemeContext';
-import MapView, { Marker, UrlTile } from '../../components/MapBridge';
-import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { useLocationSync } from '../../hooks/useLocationSync';
 import socket from '../../services/socket';
+import api from '../../services/api';
 import { getShadow } from '../../utils/theme';
+import MapView, { Marker, UrlTile, Polyline } from '../../components/MapBridge';
 
 export default function TrackingScreen({ route, navigation }) {
     const { task } = route.params;
+    const { user } = useAuth();
     const { theme, isDark } = useAppTheme();
     const [serverLoc, setServerLoc] = useState(null);
+    const [requesterLoc, setRequesterLoc] = useState(null);
     const [campus, setCampus] = useState(null);
     
-    // Smooth Animation Values
-    const latAnim = useRef(new RNAnimated.Value(28.6139)).current;
-    const lngAnim = useRef(new RNAnimated.Value(77.2090)).current;
+    // Start tracking for this specific task
+    useLocationSync(user, task._id);
     
-    // Convert animated values to state for Marker (not strictly reactive but works with listeners)
-    const [animatedCoords, setAnimatedCoords] = useState({ latitude: 28.6139, longitude: 77.2090 });
-
     useEffect(() => {
-        const latListener = latAnim.addListener(({ value }) => setAnimatedCoords(prev => ({ ...prev, latitude: value })));
-        const lngListener = lngAnim.addListener(({ value }) => setAnimatedCoords(prev => ({ ...prev, longitude: value })));
-
         const init = async () => {
             fetchCampus();
             const io = await socket.getSocket();
@@ -45,10 +42,21 @@ export default function TrackingScreen({ route, navigation }) {
                         const newLng = d.longitude || d.coordinates?.lng;
                         
                         if (newLat && newLng) {
-                            // Smoothly animate to new location
-                            RNAnimated.spring(latAnim, { toValue: newLat, useNativeDriver: false, friction: 8 }).start();
-                            RNAnimated.spring(lngAnim, { toValue: newLng, useNativeDriver: false, friction: 8 }).start();
-                            setServerLoc({ latitude: newLat, longitude: newLng });
+                            if (d.userId === task.serverId || (d.role === 'Server' && d.userId !== task.requesterId)) {
+                                setServerLoc({ 
+                                    latitude: newLat, 
+                                    longitude: newLng,
+                                    name: d.name,
+                                    avatar: d.avatar 
+                                });
+                            } else if (d.userId === task.requesterId) {
+                                setRequesterLoc({ 
+                                    latitude: newLat, 
+                                    longitude: newLng,
+                                    name: d.name,
+                                    avatar: d.avatar 
+                                });
+                            }
                         }
                     }
                 });
@@ -57,8 +65,6 @@ export default function TrackingScreen({ route, navigation }) {
         init();
 
         return () => {
-            latAnim.removeListener(latListener);
-            lngAnim.removeListener(lngListener);
             const io = socket.socket;
             if (io) {
                 io.off('tracking-update');
@@ -99,15 +105,51 @@ export default function TrackingScreen({ route, navigation }) {
                 />
 
                 {serverLoc && (
-                    <Marker coordinate={animatedCoords}>
+                    <Marker coordinate={serverLoc}>
                         <View style={styles.markerContainer}>
                             <View style={[styles.markerPulse, { backgroundColor: theme.colors.primary }]} />
-                            <View style={[styles.markerDot, { backgroundColor: theme.colors.primary, borderColor: isDark ? '#FFF' : '#000' }]} />
+                            <View style={[styles.avatarMarker, { borderColor: theme.colors.primary }]}>
+                                {serverLoc.avatar ? (
+                                    <View style={styles.avatarMiniWrapper}>
+                                        <Image source={{ uri: serverLoc.avatar.includes(':') ? serverLoc.avatar : `data:image/jpeg;base64,${serverLoc.avatar}` }} style={styles.avatarMiniImg} />
+                                    </View>
+                                ) : (
+                                    <Text style={styles.avatarInitial}>{serverLoc.name?.charAt(0) || 'S'}</Text>
+                                )}
+                            </View>
                             <View style={[styles.labelContainer, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)' }]}>
-                                <Text style={[styles.labelText, { color: isDark ? '#FFF' : '#000' }]}>SERVER</Text>
+                                <Text style={[styles.labelText, { color: isDark ? '#FFF' : '#000' }]}>PARTNER</Text>
                             </View>
                         </View>
                     </Marker>
+                )}
+
+                {requesterLoc && (
+                    <Marker coordinate={requesterLoc}>
+                        <View style={styles.markerContainer}>
+                            <View style={[styles.avatarMarker, { borderColor: theme.colors.accent }]}>
+                                {user?.avatar ? (
+                                    <View style={styles.avatarMiniWrapper}>
+                                        <Image source={{ uri: user.avatar.includes(':') ? user.avatar : `data:image/jpeg;base64,${user.avatar}` }} style={styles.avatarMiniImg} />
+                                    </View>
+                                ) : (
+                                    <Text style={styles.avatarInitial}>{user?.name?.charAt(0) || 'U'}</Text>
+                                )}
+                            </View>
+                            <View style={[styles.labelContainer, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)' }]}>
+                                <Text style={[styles.labelText, { color: isDark ? '#FFF' : '#000' }]}>YOU</Text>
+                            </View>
+                        </View>
+                    </Marker>
+                )}
+
+                {serverLoc && requesterLoc && (
+                    <Polyline 
+                        coordinates={[requesterLoc, serverLoc]}
+                        strokeColor={theme.colors.primary}
+                        strokeWidth={3}
+                        lineDashPattern={[10, 10]}
+                    />
                 )}
             </MapView>
 
@@ -145,7 +187,19 @@ const styles = StyleSheet.create({
     markerContainer: { width: 100, height: 100, alignItems: 'center', justifyContent: 'center' },
     markerPulse: { position: 'absolute', width: 40, height: 40, borderRadius: 20, opacity: 0.3 },
     markerDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3 },
-    labelContainer: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 8 },
+    avatarMarker: {
+        width: 44, height: 44, borderRadius: 22,
+        backgroundColor: '#FFF',
+        borderWidth: 3,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+        ...getShadow('#000', { width: 0, height: 4 }, 0.2, 5)
+    },
+    avatarInitial: { fontSize: 18, fontWeight: 'bold', color: '#0F172A' },
+    avatarMiniWrapper: { width: '100%', height: '100%', borderRadius: 22 },
+    avatarMiniImg: { width: '100%', height: '100%' },
+    labelContainer: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4 },
     labelText: { fontSize: 10, fontWeight: '900' },
 
     overlay: { position: 'absolute', bottom: "5%", left: "5%", right: "5%" },

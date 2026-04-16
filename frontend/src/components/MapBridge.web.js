@@ -71,23 +71,29 @@ const WebMap = ({ children, initialRegion, style, onMapReady }) => {
 
 const MapContext = React.createContext(null);
 
+import ReactDOM from 'react-dom';
+
 const Marker = ({ coordinate, onPress, children }) => {
     const map = React.useContext(MapContext);
     const markerRef = useRef(null);
+    const [container, setContainer] = useState(null);
 
     useEffect(() => {
         if (!map || !window.L) return;
         const L = window.L;
         
-        // Custom icon to allow React children (like the colored markers)
+        const el = document.createElement('div');
+        el.className = 'custom-leaflet-marker-inner';
+        
         const customIcon = L.divIcon({
-            html: '<div id="marker-' + Math.random() + '"></div>',
+            html: el,
             className: 'custom-leaflet-marker',
             iconSize: [40, 40],
             iconAnchor: [20, 20]
         });
 
         markerRef.current = L.marker([coordinate.latitude, coordinate.longitude], { icon: customIcon }).addTo(map);
+        setContainer(el);
         
         if (onPress) {
             markerRef.current.on('click', onPress);
@@ -98,15 +104,41 @@ const Marker = ({ coordinate, onPress, children }) => {
         };
     }, [map, coordinate.latitude, coordinate.longitude]);
 
-    // We can't easily port the React Native "children" into the Leaflet DOM node 
-    // without using portals, but for now we effectively sync coordinates.
-    return null;
+    return container ? ReactDOM.createPortal(children, container) : null;
 };
 
 const UrlTile = () => null; // Leaflet handles tiles globally in the base map for this bridge
 
+const Polyline = ({ coordinates, strokeColor, strokeWidth }) => {
+    const map = React.useContext(MapContext);
+    const polylineRef = useRef(null);
+
+    useEffect(() => {
+        if (!map || !window.L || !coordinates || coordinates.length < 2) return;
+        const L = window.L;
+        
+        const latlngs = coordinates.map(c => [c.latitude, c.longitude]);
+        
+        if (polylineRef.current) {
+            polylineRef.current.setLatLngs(latlngs);
+        } else {
+            polylineRef.current = L.polyline(latlngs, {
+                color: strokeColor || '#2563EB',
+                weight: strokeWidth || 3,
+                opacity: 0.8
+            }).addTo(map);
+        }
+
+        return () => {
+            if (polylineRef.current) map.removeLayer(polylineRef.current);
+        };
+    }, [map, coordinates, strokeColor, strokeWidth]);
+
+    return null;
+};
+
 export default WebMap;
-export { Marker, UrlTile };
+export { Marker, UrlTile, Polyline };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFBF0', position: 'relative' }

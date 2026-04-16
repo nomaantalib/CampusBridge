@@ -4,15 +4,19 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 // ✅ WORKING API SERVICE - Fixed for production
-let DEFAULT_HOST = "127.0.0.1";
+let DEFAULT_HOST = "localhost";
 if (Platform.OS !== "web") {
+  // Try to get the host from Expo constants (works for LAN/Tunnel)
   const hostUri = Constants?.expoConfig?.hostUri || Constants?.manifest?.hostUri || "";
   if (hostUri) {
     DEFAULT_HOST = hostUri.split(":")[0];
   } else if (Platform.OS === "android") {
+    // Android emulator default host
     DEFAULT_HOST = "10.0.2.2";
   } else {
-    DEFAULT_HOST = "192.168.1.52";
+    // If all else fails, localhost (works for physical iOS on same Wi-Fi sometimes, but 
+    // usually hostUri is present in managed Expo workflow)
+    DEFAULT_HOST = "localhost";
   }
 }
 
@@ -108,6 +112,9 @@ api.interceptors.response.use(
           ]);
         }
       }
+    }
+    if (error.code === 'ECONNABORTED') {
+      console.warn("[API] Request timeout exceeded");
     }
     return Promise.reject(error);
   },

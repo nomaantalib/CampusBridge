@@ -1,4 +1,4 @@
-import MapView, { Marker, UrlTile } from 'react-native-maps';
+import MapView, { Marker, UrlTile, Polyline } from 'react-native-maps';
 
 export default MapView;
-export { Marker, UrlTile };
+export { Marker, UrlTile, Polyline };

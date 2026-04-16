@@ -14,6 +14,7 @@ import {
 import { useAppTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
 import { getShadow } from '../../utils/theme';
+import AdaptiveScrollView from '../../components/AdaptiveScrollView';
 
 export default function ActivityScreen({ navigation }) {
     const { theme, isDark } = useAppTheme();
@@ -83,6 +84,8 @@ export default function ActivityScreen({ navigation }) {
                 keyExtractor={item => item._id}
                 renderItem={renderItem}
                 contentContainerStyle={styles.list}
+                showsVerticalScrollIndicator={true}
+                scrollEventThrottle={16}
                 refreshControl={
                     <RefreshControl 
                         refreshing={refreshing} 

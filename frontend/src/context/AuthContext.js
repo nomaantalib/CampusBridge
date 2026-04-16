@@ -30,6 +30,17 @@ export const AuthProvider = ({ children }) => {
       const authDataSerialized = await AsyncStorage.getItem("user");
       const token = await AsyncStorage.getItem("accessToken");
 
+      // Optimistic Load: Set user from cache immediately for zero-flicker startup
+      if (authDataSerialized && token) {
+        try {
+          const cachedUser = JSON.parse(authDataSerialized);
+          setUser(cachedUser);
+          if (__DEV__) console.log("[Auth] Optimistically loaded user:", cachedUser.email);
+        } catch (e) {
+          console.warn("[Auth] Failed to parse cached user data");
+        }
+      }
+
       if (authDataSerialized && token) {
         // Verify token with backend
         try {
@@ -40,8 +51,7 @@ export const AuthProvider = ({ children }) => {
              await logout();
           }
         } catch (apiError) {
-          console.warn("[Auth] Static auth validation failed, continuing as guest");
-          // If 401, we logout. If network error, we might keep local state but for safety we logout or just clear loading
+          console.warn("[Auth] Session validation failed:", apiError.message);
           if (apiError.response?.status === 401) {
              await logout();
           }
@@ -141,21 +151,33 @@ export const AuthProvider = ({ children }) => {
       }
       return { success: true };
     } catch (error) {
-      if (__DEV__) {
-        console.error("[Auth] Signup error:", {
-          status: error.response?.status,
-          data: error.response?.data,
-          message: error.message,
-        });
-      }
       return {
         success: false,
-        message:
-          error.response?.data?.message ||
-          error.message ||
-          "Registration failed",
-        errors: error.response?.data?.errors,
+        message: error.response?.data?.message || error.message || "Registration failed",
       };
+    }
+  };
+
+  const googleLogin = async (idToken) => {
+    try {
+      const response = await api.post("/auth/google", { idToken });
+      
+      if (response.data.success) {
+        if (response.data.isNewUser) {
+          return { success: true, isNewUser: true, userData: response.data.userData };
+        }
+
+        const { token, user: userPayload } = response.data;
+        if (token && userPayload) {
+          await AsyncStorage.setItem("accessToken", token);
+          await AsyncStorage.setItem("user", JSON.stringify(userPayload));
+          setUser(userPayload);
+          return { success: true, isNewUser: false };
+        }
+      }
+      throw new Error(response.data.message || "Google Login failed");
+    } catch (error) {
+      return { success: false, message: error.response?.data?.message || error.message };
     }
   };
 
@@ -169,7 +191,6 @@ export const AuthProvider = ({ children }) => {
       const response = await api.patch("/auth/me", updatedData);
       
       if (response.data.success) {
-        // Use server response as source of truth
         const newUser = response.data.user || response.data.data;
         if (newUser) {
           await AsyncStorage.setItem("user", JSON.stringify(newUser));
@@ -179,7 +200,6 @@ export const AuthProvider = ({ children }) => {
       }
       return { success: false, message: response.data.message || 'Update failed' };
     } catch (error) {
-      console.error("[Auth] Update user error:", error.response?.data || error.message);
       return { 
         success: false, 
         message: error.response?.data?.message || error.message || "Failed to update profile" 
@@ -188,7 +208,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, updateUser, setUser }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, updateUser, setUser, googleLogin }}>
       {children}
     </AuthContext.Provider>
   );

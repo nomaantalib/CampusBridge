@@ -1,69 +1,59 @@
-/* Premium Adaptive Scrollbar Styling */
+/* 
+ * BOLD BLUE PREMIUM SCROLLBAR 
+ * High-visibility styling for all browsers
+ */
 
-/* Global Webkit browsers (Chrome, Safari, Edge) */
-::-webkit-scrollbar {
-  width: 6px !important;
-  height: 6px !important;
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent !important;
+*::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.6) !important; /* High contrast thumb */
-  border-radius: 10px !important;
-  transition: background 0.3s ease !important;
-  border: 2px solid transparent !important;
-  background-clip: content-box !important;
+*::-webkit-scrollbar-thumb {
+  background: #2563eb; /* Vibrant Primary Blue */
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.2s ease;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 112, 67, 0.6) !important; /* Peach hover for light mode hint */
+*::-webkit-scrollbar-thumb:hover {
+  background: #1d4ed8;
 }
 
-/* For Dark Theme contexts */
-[data-theme='dark'] ::-webkit-scrollbar-thumb:hover,
-.dark-theme ::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.6) !important; /* Blue hover for dark mode */
+/* Dark Theme Overrides */
+[data-theme='dark'] *::-webkit-scrollbar-thumb,
+.dark-theme *::-webkit-scrollbar-thumb {
+  background: #60a5fa;
 }
 
-/* List containers and specific scrollable areas */
-.scroll-container, 
-.scroll-view-container {
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(148, 163, 184, 0.2) transparent !important;
+/* Firefox Support */
+* {
+  scrollbar-width: auto;
+  scrollbar-color: #2563eb rgba(0, 0, 0, 0.1);
 }
 
-/* Force hover visibility for better UX */
-::-webkit-scrollbar-thumb:active {
-  background: rgba(148, 163, 184, 0.8) !important;
-}
-
-/* Prevent Browser White Autofill styling breaking themes */
-input:-webkit-autofill,
-input:-webkit-autofill:hover, 
-input:-webkit-autofill:focus, 
-input:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 50px rgba(15,23,42,1) inset !important;
-    -webkit-text-fill-color: #F8FAFC !important;
-    transition: background-color 5000s ease-in-out 0s !important;
-    background-color: transparent !important;
-}
-
-/* Smooth scrolling for the whole app window */
-html, body, #root {
-  height: 100vh;
+/* Layout Fixing - RESTORE NATURAL SCROLLING */
+html, body {
+  height: 100%;
+  width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden !important; /* Lock root to prevent double scrollbars */
+  overflow: auto; /* Allow window-level scrolling */
 }
 
 #root {
+  min-height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-html {
-  scroll-behavior: smooth;
+/* Fix for standard input autofill styling */
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 500px #0f172a inset !important;
+  -webkit-text-fill-color: #ffffff !important;
 }

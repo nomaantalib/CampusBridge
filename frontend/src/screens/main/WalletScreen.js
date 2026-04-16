@@ -226,6 +226,7 @@ export default function WalletScreen() {
                         </View>
                     )}
                     contentContainerStyle={styles.list}
+                    showsVerticalScrollIndicator={true}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchWallet(); }} tintColor={theme.colors.accent} />}
                 />
             </View>

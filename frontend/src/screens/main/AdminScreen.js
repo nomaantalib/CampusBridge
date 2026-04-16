@@ -13,6 +13,7 @@ import {
 import { useAppTheme } from '../../context/ThemeContext';
 import { getShadow } from '../../utils/theme';
 import api from '../../services/api';
+import AdaptiveScrollView from '../../components/AdaptiveScrollView';
 
 export default function AdminScreen({ navigation }) {
     const { theme, isDark } = useAppTheme();
@@ -43,7 +44,7 @@ export default function AdminScreen({ navigation }) {
     );
 
     return (
-        <ScrollView style={[styles.container, { backgroundColor: theme.colors.bg }]} contentContainerStyle={styles.scroll}>
+        <AdaptiveScrollView contentContainerStyle={styles.scroll}>
             <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('Home')}>
                 <Text style={[styles.backBtnText, { color: theme.colors.accent }]}>← Back to Lobby</Text>
             </TouchableOpacity>
@@ -81,7 +82,7 @@ export default function AdminScreen({ navigation }) {
                     </View>
                 </View>
             </View>
-        </ScrollView>
+        </AdaptiveScrollView>
     );
 }
 
