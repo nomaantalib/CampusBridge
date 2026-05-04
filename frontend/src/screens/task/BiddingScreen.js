@@ -170,21 +170,31 @@ export default function BiddingScreen({ route, navigation }) {
                     </View>
                 </View>
 
-                {/* Step 5: Payment Gate Flow */}
-                {selectBidForPayment && (
-                    <View style={[styles.card, styles.paymentGate, { borderColor: theme.colors.primary, backgroundColor: isDark ? 'rgba(37,99,235,0.1)' : 'rgba(37,99,235,0.05)' }]}>
-                        <Text style={[styles.payTitle, { color: theme.colors.text }]}>Confirm & Pay 🔒</Text>
-                        <Text style={[styles.paySub, { color: theme.colors.textMuted }]}>Money stays in a safe zone until you're happy. No scams allowed! 🛡️</Text>
-                        <View style={[styles.payRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
-                            <Text style={[styles.payLabel, { color: theme.colors.textDim }]}>Total Damage:</Text>
-                            <Text style={[styles.payVal, { color: theme.colors.success }]}>₹{selectBidForPayment.amount}</Text>
+                {/* Payment Gateway Flow */}
+                {selectBidForPayment && !selectBidForPayment.isNegotiating && (
+                    <View style={styles.paymentOverlay}>
+                        <View style={[styles.paymentModal, { backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.98)' }]}>
+                            <Text style={styles.payIcon}>🛡️</Text>
+                            <Text style={[styles.payTitle, { color: theme.colors.text }]}>Secure Payment Confirmation</Text>
+                            <Text style={[styles.paySub, { color: theme.colors.textMuted }]}>Are you sure you want to lock in this deal? The offered amount will be held in escrow until completion. 🔒</Text>
+                            
+                            <View style={styles.paySummary}>
+                                <Text style={[styles.payLabel, { color: theme.colors.textDim }]}>Amount to be Paid:</Text>
+                                <Text style={[styles.payVal, { color: theme.colors.success }]}>₹{selectBidForPayment.amount}</Text>
+                            </View>
+
+                            <View style={styles.payActions}>
+                                <TouchableOpacity 
+                                    style={[styles.payConfirmBtn, { backgroundColor: theme.colors.primary }]} 
+                                    onPress={() => handleAction('/tasks/accept', { taskId: task._id, bidId: selectBidForPayment._id })}
+                                >
+                                    {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.payConfirmText}>YES, PROCEED ✅</Text>}
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setSelectBidForPayment(null)} style={styles.payCancelBtn}>
+                                    <Text style={[styles.payCancelText, { color: theme.colors.danger }]}>DECLINE</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                        <TouchableOpacity style={[styles.payBtn, { backgroundColor: theme.colors.primary }]} onPress={() => handleAction('/tasks/accept', { taskId: task._id, bidId: selectBidForPayment._id })}>
-                            {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>LOCK IT IN 💎</Text>}
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setSelectBidForPayment(null)} style={styles.cancelPay}>
-                            <Text style={[styles.cancelPayText, { color: theme.colors.textMuted }]}>Nvm, changed my mind</Text>
-                        </TouchableOpacity>
                     </View>
                 )}
 
@@ -393,17 +403,29 @@ const styles = StyleSheet.create({
     statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
     status: { fontWeight: 'bold', fontSize: 13 },
 
-    paymentGate: { borderWidth: 2 },
-    payTitle: { fontSize: 20, fontWeight: '900', textAlign: 'center' },
-    paySub: { fontSize: 12, textAlign: 'center', marginTop: 8, marginBottom: 20 },
-    payRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, borderRadius: 14, marginBottom: 20 },
+    paymentOverlay: { 
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, 
+        backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 
+    },
+    paymentModal: { 
+        width: '85%', padding: 32, borderRadius: 35, alignItems: 'center',
+        ...getShadow("#000", { width: 0, height: 20 }, 0.5, 30, 20)
+    },
+    payIcon: { fontSize: 48, marginBottom: 20 },
+    payTitle: { fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 12 },
+    paySub: { fontSize: 13, textAlign: 'center', marginBottom: 24, lineHeight: 18 },
+    paySummary: { 
+        flexDirection: 'row', justifyContent: 'space-between', width: '100%', 
+        padding: 20, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.03)', marginBottom: 24 
+    },
     payLabel: { fontWeight: '600' },
-    payVal: { fontWeight: 'bold', fontSize: 18 },
-    payBtn: { padding: 18, borderRadius: 18, alignItems: 'center', elevation: 4 },
-    payBtnText: { color: '#FFF', fontWeight: '900' },
-    cancelPay: { marginTop: 14, alignItems: 'center' },
-    cancelPayText: { fontSize: 13 },
-    
+    payVal: { fontWeight: 'bold', fontSize: 20 },
+    payActions: { width: '100%', gap: 12 },
+    payConfirmBtn: { padding: 18, borderRadius: 18, alignItems: 'center' },
+    payConfirmText: { color: '#FFF', fontWeight: '900', fontSize: 15 },
+    payCancelBtn: { padding: 14, alignItems: 'center' },
+    payCancelText: { fontWeight: '700', fontSize: 14, letterSpacing: 1 },
+
     otpBox: { padding: 24, borderRadius: 28, alignItems: 'center', marginBottom: 20 },
     otpLabel: { fontSize: 12, marginBottom: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
     otpCode: { fontSize: 44, fontWeight: '900', letterSpacing: 8 },
