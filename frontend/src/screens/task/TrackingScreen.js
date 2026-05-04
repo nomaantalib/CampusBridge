@@ -27,6 +27,7 @@ export default function TrackingScreen({ route, navigation }) {
     const [serverLoc, setServerLoc] = useState(null);
     const [requesterLoc, setRequesterLoc] = useState(null);
     const [campus, setCampus] = useState(null);
+    const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
     
     // Start tracking for this specific task
     useLocationSync(user, task._id);
@@ -78,10 +79,6 @@ export default function TrackingScreen({ route, navigation }) {
             const res = await api.get(`/campuses/${task.campusId}`);
             if (res.data.success) {
                 setCampus(res.data.data);
-                // Center map on campus initially
-                const center = res.data.data.center || { lat: 28.6139, lng: 77.2090 };
-                latAnim.setValue(center.lat);
-                lngAnim.setValue(center.lng);
             }
         } catch (e) { console.error(e); }
     };
@@ -100,6 +97,20 @@ export default function TrackingScreen({ route, navigation }) {
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
             <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+            
+            <View style={styles.headerBar}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <Text style={{ fontSize: 24 }}>🔙</Text>
+                </TouchableOpacity>
+                <View>
+                    <Text style={[styles.orderId, { color: theme.colors.text }]}>Order #{task._id.slice(-6).toUpperCase()}</Text>
+                    <Text style={[styles.etaText, { color: theme.colors.success }]}>Arriving in ~15 mins ⏰</Text>
+                </View>
+                <TouchableOpacity style={styles.helpButton} onPress={() => Alert.alert("Support", "Connecting to CampusBridge help desk...")}>
+                    <Text style={[styles.helpText, { color: theme.colors.accent }]}>HELP</Text>
+                </TouchableOpacity>
+            </View>
+
             <MapView
                 style={styles.map}
                 initialRegion={{ 
@@ -109,7 +120,6 @@ export default function TrackingScreen({ route, navigation }) {
                     longitudeDelta: 0.01 
                 }}
             >
-                {/* Dark Mode aware Tiles */}
                 <UrlTile 
                     urlTemplate={isDark ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
                     maximumZ={19}
@@ -129,9 +139,6 @@ export default function TrackingScreen({ route, navigation }) {
                                     <Text style={styles.avatarInitial}>{serverLoc.name?.charAt(0) || 'S'}</Text>
                                 )}
                             </View>
-                            <View style={[styles.labelContainer, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)' }]}>
-                                <Text style={[styles.labelText, { color: isDark ? '#FFF' : '#000' }]}>PARTNER</Text>
-                            </View>
                         </View>
                     </Marker>
                 )}
@@ -148,9 +155,6 @@ export default function TrackingScreen({ route, navigation }) {
                                     <Text style={styles.avatarInitial}>{user?.name?.charAt(0) || 'U'}</Text>
                                 )}
                             </View>
-                            <View style={[styles.labelContainer, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)' }]}>
-                                <Text style={[styles.labelText, { color: isDark ? '#FFF' : '#000' }]}>YOU</Text>
-                            </View>
                         </View>
                     </Marker>
                 )}
@@ -159,7 +163,7 @@ export default function TrackingScreen({ route, navigation }) {
                     <Polyline 
                         coordinates={[requesterLoc, serverLoc]}
                         strokeColor={theme.colors.primary}
-                        strokeWidth={3}
+                        strokeWidth={4}
                         lineDashPattern={[10, 10]}
                     />
                 )}
@@ -168,7 +172,10 @@ export default function TrackingScreen({ route, navigation }) {
             <View style={styles.overlay}>
                 <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
                     
-                    {/* Progress Timeline */}
+                    <TouchableOpacity style={styles.dragHandle} onPress={() => setIsDetailsExpanded(!isDetailsExpanded)}>
+                        <View style={[styles.dragLine, { backgroundColor: theme.colors.textMuted }]} />
+                    </TouchableOpacity>
+
                     <View style={styles.timelineContainer}>
                         {[
                             { label: 'Requested', status: ['Open', 'Negotiating', 'Accepted', 'InTransit', 'Completed'] },
@@ -186,17 +193,25 @@ export default function TrackingScreen({ route, navigation }) {
                         ))}
                     </View>
 
-                    <View style={styles.header}>
-                        <View style={[styles.statusIndicator, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)' }]}>
-                             <View style={[styles.liveDot, { backgroundColor: theme.colors.success }]} />
-                             <Text style={[styles.liveText, { color: theme.colors.success }]}>LIVE</Text>
+                    {isDetailsExpanded && (
+                        <View style={styles.expandedContent}>
+                            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Order Details</Text>
+                            <View style={styles.orderDetailRow}>
+                                <Text style={[styles.detailLabel, { color: theme.colors.textDim }]}>Category:</Text>
+                                <Text style={[styles.detailVal, { color: theme.colors.text }]}>{task.category}</Text>
+                            </View>
+                            <View style={styles.orderDetailRow}>
+                                <Text style={[styles.detailLabel, { color: theme.colors.textDim }]}>Description:</Text>
+                                <Text style={[styles.detailVal, { color: theme.colors.text }]}>{task.description}</Text>
+                            </View>
+                            <View style={[styles.orderDetailRow, { borderBottomWidth: 0 }]}>
+                                <Text style={[styles.detailLabel, { color: theme.colors.textDim }]}>Paid Amount:</Text>
+                                <Text style={[styles.detailVal, { color: theme.colors.success, fontWeight: '900' }]}>₹{task.finalFare || task.offeredFare}</Text>
+                            </View>
                         </View>
-                        <Text style={[styles.category, { color: theme.colors.accent }]}>{task.category} • ₹{task.finalFare || task.offeredFare}</Text>
-                    </View>
-                    
-                    <Text style={[styles.desc, { color: theme.colors.text }]}>{task.description}</Text>
-                    
-                    <View style={[styles.footer, { borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                    )}
+
+                    <View style={styles.footer}>
                         <View style={styles.partnerInfo}>
                              <Text style={[styles.partnerLabel, { color: theme.colors.textMuted }]}>{user.id === task.requesterId ? 'Delivery Partner' : 'Customer'}</Text>
                              <Text style={[styles.partnerName, { color: theme.colors.text }]}>
@@ -215,11 +230,7 @@ export default function TrackingScreen({ route, navigation }) {
                     </View>
 
                     <TouchableOpacity style={[styles.directionsBtn, { backgroundColor: theme.colors.accent }]} onPress={openDirections}>
-                        <Text style={styles.directionsBtnText}>GET GOOGLE MAPS DIRECTIONS 🧭</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.returnBtn}>
-                        <Text style={[styles.returnBtnText, { color: theme.colors.textMuted }]}>Return to Bidding</Text>
+                        <Text style={styles.directionsBtnText}>ONE-TAP GOOGLE MAPS DIRECTIONS 🧭</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -231,9 +242,19 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     map: { flex: 1 },
     
+    headerBar: { 
+        position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, left: '5%', right: '5%', 
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
+        zIndex: 100, backgroundColor: 'rgba(255,255,255,0.9)', padding: 16, borderRadius: 20,
+        ...getShadow("#000", { width: 0, height: 4 }, 0.2, 5)
+    },
+    orderId: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+    etaText: { fontSize: 14, fontWeight: '700' },
+    helpButton: { padding: 8 },
+    helpText: { fontWeight: '900', fontSize: 12 },
+
     markerContainer: { width: 100, height: 100, alignItems: 'center', justifyContent: 'center' },
     markerPulse: { position: 'absolute', width: 40, height: 40, borderRadius: 20, opacity: 0.3 },
-    markerDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3 },
     avatarMarker: {
         width: 44, height: 44, borderRadius: 22,
         backgroundColor: '#FFF',
@@ -246,26 +267,32 @@ const styles = StyleSheet.create({
     avatarInitial: { fontSize: 18, fontWeight: 'bold', color: '#0F172A' },
     avatarMiniWrapper: { width: '100%', height: '100%', borderRadius: 22 },
     avatarMiniImg: { width: '100%', height: '100%' },
-    labelContainer: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4 },
-    labelText: { fontSize: 10, fontWeight: '900' },
 
-    overlay: { position: 'absolute', bottom: "5%", left: "5%", right: "5%" },
+    overlay: { position: 'absolute', bottom: 0, left: 0, right: 0 },
     infoCard: { 
-        padding: 24, borderRadius: 28, 
+        padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+        borderTopLeftRadius: 35, borderTopRightRadius: 35,
         borderWidth: 1,
-        ...getShadow("#000", { width: 0, height: 10 }, 0.4, 20, 10)
+        ...getShadow("#000", { width: 0, height: -10 }, 0.3, 20, 10)
     },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    statusIndicator: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-    liveDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
-    liveText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-    category: { fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase' },
+    dragHandle: { alignSelf: 'center', padding: 10, marginBottom: 10 },
+    dragLine: { width: 40, height: 5, borderRadius: 3, opacity: 0.3 },
     
-    desc: { fontSize: 18, fontWeight: '700', marginBottom: 20 },
-    
-    footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, paddingTop: 16 },
+    timelineContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24, paddingHorizontal: 10 },
+    timelineStep: { alignItems: 'center' },
+    stepDot: { width: 12, height: 12, borderRadius: 6, marginBottom: 4 },
+    stepLabel: { fontSize: 10, fontWeight: '800' },
+    stepLine: { flex: 1, height: 2, marginHorizontal: 4, borderRadius: 1 },
+
+    expandedContent: { marginBottom: 24, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', paddingBottom: 20 },
+    sectionTitle: { fontSize: 16, fontWeight: '900', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
+    orderDetailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+    detailLabel: { fontSize: 13, fontWeight: '600' },
+    detailVal: { fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right', marginLeft: 20 },
+
+    footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10 },
     partnerLabel: { fontSize: 11, marginBottom: 2 },
-    partnerName: { fontSize: 14, fontWeight: 'bold' },
+    partnerName: { fontSize: 15, fontWeight: 'bold' },
     
     contactActions: { flexDirection: 'row', gap: 12 },
     contactBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 4 },
@@ -273,13 +300,4 @@ const styles = StyleSheet.create({
     
     directionsBtn: { marginTop: 24, padding: 18, borderRadius: 16, alignItems: 'center', elevation: 4 },
     directionsBtnText: { color: '#FFF', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
-    
-    returnBtn: { marginTop: 16, alignItems: 'center' },
-    returnBtnText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
-
-    timelineContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24, paddingHorizontal: 10 },
-    timelineStep: { alignItems: 'center' },
-    stepDot: { width: 12, height: 12, borderRadius: 6, marginBottom: 4 },
-    stepLabel: { fontSize: 10, fontWeight: '800' },
-    stepLine: { flex: 1, height: 2, marginHorizontal: 4, borderRadius: 1 }
 });
