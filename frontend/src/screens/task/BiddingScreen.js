@@ -247,6 +247,11 @@ export default function BiddingScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                 </Animated.View>
                             </View>
+                            {bidAmount > 0 && (
+                                <Text style={[styles.earningsLabel, { color: theme.colors.success }]}>
+                                    You will earn ₹{(Number(bidAmount) * 0.7).toFixed(0)} after 30% commission 💼
+                                </Text>
+                            )}
                         </View>
                     );
                 })()}
@@ -442,4 +447,5 @@ const styles = StyleSheet.create({
     actionBtnRow: { flexDirection: 'row', gap: 8 },
     actionBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, elevation: 2 },
     actionBtnText: { color: '#FFF', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
+    earningsLabel: { fontSize: 11, fontWeight: '700', marginTop: 12, textAlign: 'center' },
 });
