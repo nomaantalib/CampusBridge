@@ -45,6 +45,12 @@ export default function BiddingScreen({ route, navigation }) {
     const pulseAnim = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
+        if (task.status === 'Accepted' || task.status === 'InTransit') {
+            navigation.replace('Tracking', { task });
+        }
+    }, [task.status]);
+
+    useEffect(() => {
         let activeSocket = null;
 
         const pulse = () => {
@@ -150,7 +156,12 @@ export default function BiddingScreen({ route, navigation }) {
                 <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
                     <View style={styles.row}>
                         <Text style={[styles.catText, { color: theme.colors.accent }]}>{task.category} ⚡</Text>
-                        <Text style={[styles.fare, { color: theme.colors.success }]}>₹{task.finalFare || task.offeredFare}</Text>
+                        <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={[styles.fare, { color: theme.colors.success }]}>
+                                ₹{isServer ? ((task.finalFare || task.offeredFare) * 0.7).toFixed(0) : (task.finalFare || task.offeredFare)}
+                            </Text>
+                            {isServer && <Text style={{ fontSize: 10, color: theme.colors.textMuted, fontWeight: '700' }}>YOUR EARNINGS</Text>}
+                        </View>
                     </View>
                     <Text style={[styles.desc, { color: theme.colors.text }]}>{task.description}</Text>
                     <View style={styles.statusRow}>
@@ -188,26 +199,57 @@ export default function BiddingScreen({ route, navigation }) {
                     </View>
                 )}
 
-                {isServer && !isAssigned && ['Open', 'Negotiating'].includes(task.status) && (
-                    <View style={[styles.actionCard, { backgroundColor: theme.colors.card }]}>
-                        <Text style={[styles.sectionLabel, { color: theme.colors.textMuted }]}>Name Your Price 💰</Text>
-                        <View style={styles.bidInputWrapper}>
-                            <TextInput 
-                                style={[styles.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', color: theme.colors.text }]} 
-                                keyboardType="numeric" 
-                                value={bidAmount} 
-                                onChangeText={setBidAmount} 
-                                placeholder="e.g. 50" 
-                                placeholderTextColor={theme.colors.textMuted} 
-                            />
-                            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                                <TouchableOpacity style={[styles.bidSubmitBtn, { backgroundColor: theme.colors.primary }]} onPress={handleBidSubmit}>
-                                    <Text style={styles.btnText}>SEND IT! 🚀</Text>
-                                </TouchableOpacity>
-                            </Animated.View>
+                {isServer && !isAssigned && ['Open', 'Negotiating'].includes(task.status) && (() => {
+                    const myBid = task.bids?.find(b => b.serverId === user.id || b.serverId?._id === user.id);
+                    const isRequesterCountered = myBid && myBid.lastOfferBy === 'Requester';
+
+                    return (
+                        <View style={[styles.actionCard, { backgroundColor: theme.colors.card }]}>
+                            {isRequesterCountered ? (
+                                <>
+                                    <Text style={[styles.sectionLabel, { color: theme.colors.textMuted }]}>Requester Counter-Offered! 🤝</Text>
+                                    <Text style={[styles.bidAmt, { color: theme.colors.accent, textAlign: 'center', marginBottom: 16 }]}>₹{myBid.amount}</Text>
+                                    
+                                    <TouchableOpacity 
+                                        style={[styles.quickAcceptBtn, { backgroundColor: theme.colors.success }]} 
+                                        onPress={() => handleAction('/tasks/bid/accept-counter', { taskId: task._id, bidId: myBid._id })}
+                                    >
+                                        <Text style={styles.quickAcceptText}>ACCEPT FOR ₹{myBid.amount}</Text>
+                                    </TouchableOpacity>
+                                </>
+                            ) : (
+                                <>
+                                    <Text style={[styles.sectionLabel, { color: theme.colors.textMuted }]}>Negotiate or Accept</Text>
+                                    
+                                    <TouchableOpacity 
+                            style={[styles.quickAcceptBtn, { backgroundColor: theme.colors.success }]} 
+                            onPress={() => handleAction('/tasks/bid', { taskId: task._id, amount: task.offeredFare })}
+                        >
+                            <Text style={styles.quickAcceptText}>ACCEPT FOR ₹{(task.offeredFare * 0.7).toFixed(0)} (EARNINGS)</Text>
+                        </TouchableOpacity>
+                                </>
+                            )}
+
+                            <Text style={[styles.orDivider, { color: theme.colors.textMuted }]}>— OR COUNTER OFFER —</Text>
+
+                            <View style={styles.bidInputWrapper}>
+                                <TextInput 
+                                    style={[styles.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', color: theme.colors.text }]} 
+                                    keyboardType="numeric" 
+                                    value={bidAmount} 
+                                    onChangeText={setBidAmount} 
+                                    placeholder={isRequesterCountered ? `e.g. ${myBid.amount + 5}` : `e.g. ${task.offeredFare + 10}`} 
+                                    placeholderTextColor={theme.colors.textMuted} 
+                                />
+                                <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                                    <TouchableOpacity style={[styles.bidSubmitBtn, { backgroundColor: theme.colors.primary }]} onPress={handleBidSubmit}>
+                                        <Text style={styles.btnText}>OFFER</Text>
+                                    </TouchableOpacity>
+                                </Animated.View>
+                            </View>
                         </View>
-                    </View>
-                )}
+                    );
+                })()}
 
             {isAssigned && task.status === 'Accepted' && (
                 <View style={[styles.actionCard, { backgroundColor: theme.colors.card }]}>
@@ -240,23 +282,82 @@ export default function BiddingScreen({ route, navigation }) {
                 </View>
             )}
 
-            {/* Bids List */}
-            {!task.serverId && (
+            {/* Bids List (Requester View) */}
+            {!task.serverId && isRequester && (
                 <View style={styles.bidsSection}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.textDim }]}>Bids History</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.textDim }]}>Available Providers ({task.bids?.length || 0})</Text>
                     {task.bids?.map((b, i) => (
-                        <View key={i} style={[styles.bidItem, { backgroundColor: theme.colors.card }]}>
-                            <View>
-                                <Text style={[styles.bidder, { color: theme.colors.textDim }]}>Certified Server #{b.serverId.slice(-4)}</Text>
-                                <Text style={[styles.bidAmt, { color: theme.colors.success }]}>₹{b.amount}</Text>
+                        <View key={i} style={[styles.bidItem, { backgroundColor: theme.colors.card, borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                            <View style={styles.bidderInfo}>
+                                <View style={[styles.bidderAvatar, { backgroundColor: theme.colors.accent }]}>
+                                    <Text style={styles.bidderAvatarText}>S</Text>
+                                </View>
+                                <View>
+                                    <Text style={[styles.bidder, { color: theme.colors.text }]}>Provider #{b.serverId.slice(-4)}</Text>
+                                    <View style={styles.ratingRow}>
+                                        <Text style={styles.starIcon}>⭐</Text>
+                                        <Text style={[styles.ratingText, { color: theme.colors.textMuted }]}>4.9</Text>
+                                    </View>
+                                </View>
                             </View>
-                            {isRequester && (
-                                <TouchableOpacity style={[styles.acceptBtn, { backgroundColor: theme.colors.primary }]} onPress={() => setSelectBidForPayment(b)}>
-                                    <Text style={styles.acceptBtnText}>Select</Text>
-                                </TouchableOpacity>
-                            )}
+
+                            <View style={styles.bidActionContainer}>
+                                <Text style={[styles.bidAmt, { color: theme.colors.success }]}>₹{b.amount}</Text>
+                                
+                                {b.status === 'AcceptedByServer' ? (
+                                    <View style={styles.serverAcceptedBox}>
+                                        <Text style={styles.serverAcceptedText}>Server Accepted!</Text>
+                                        <TouchableOpacity style={[styles.acceptBtn, { backgroundColor: theme.colors.primary }]} onPress={() => setSelectBidForPayment(b)}>
+                                            <Text style={styles.acceptBtnText}>LOCK IT IN 💎</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : b.lastOfferBy === 'Requester' ? (
+                                    <Text style={[styles.waitingText, { color: theme.colors.textMuted }]}>Waiting for server...</Text>
+                                ) : (
+                                    <>
+                                        <View style={styles.actionBtnRow}>
+                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.colors.success }]} onPress={() => setSelectBidForPayment(b)}>
+                                                <Text style={styles.actionBtnText}>ACCEPT</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity 
+                                                style={[styles.actionBtn, { backgroundColor: theme.colors.accent }]} 
+                                                onPress={() => setSelectBidForPayment({ ...b, isNegotiating: true })}
+                                            >
+                                                <Text style={styles.actionBtnText}>COUNTER</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </>
+                                )}
+                            </View>
                         </View>
                     ))}
+                </View>
+            )}
+
+            {/* Negotiation / Counter Offer Modal (For Requester) */}
+            {selectBidForPayment && selectBidForPayment.isNegotiating && (
+                <View style={[styles.card, styles.paymentGate, { borderColor: theme.colors.accent, backgroundColor: isDark ? 'rgba(139,92,246,0.1)' : 'rgba(139,92,246,0.05)' }]}>
+                    <Text style={[styles.payTitle, { color: theme.colors.text }]}>Counter Offer 🤝</Text>
+                    <Text style={[styles.paySub, { color: theme.colors.textMuted }]}>Negotiate a better price with Provider #{selectBidForPayment.serverId.slice(-4)}</Text>
+                    
+                    <TextInput 
+                        style={[styles.input, { backgroundColor: theme.colors.card, color: theme.colors.text, marginBottom: 16 }]} 
+                        keyboardType="numeric" 
+                        value={bidAmount} 
+                        onChangeText={setBidAmount} 
+                        placeholder={`e.g. ${selectBidForPayment.amount - 5}`} 
+                        placeholderTextColor={theme.colors.textMuted} 
+                    />
+                    
+                    <TouchableOpacity 
+                        style={[styles.payBtn, { backgroundColor: theme.colors.accent }]} 
+                        onPress={() => handleAction('/tasks/bid/counter', { taskId: task._id, bidId: selectBidForPayment._id, amount: Number(bidAmount) })}
+                    >
+                        {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>SEND COUNTER OFFER</Text>}
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setSelectBidForPayment(null)} style={styles.cancelPay}>
+                        <Text style={[styles.cancelPayText, { color: theme.colors.textMuted }]}>Cancel</Text>
+                    </TouchableOpacity>
                 </View>
             )}
             </ScrollView>
@@ -310,17 +411,35 @@ const styles = StyleSheet.create({
     primaryActionBtn: { padding: 18, borderRadius: 18, alignItems: 'center', elevation: 4 },
     primaryActionText: { color: '#FFF', fontWeight: '900' },
     sectionLabel: { fontSize: 13, fontWeight: 'bold', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+    quickAcceptBtn: { padding: 16, borderRadius: 16, alignItems: 'center', marginBottom: 16, elevation: 2 },
+    quickAcceptText: { color: '#FFF', fontWeight: '900', fontSize: 15, letterSpacing: 0.5 },
+    orDivider: { textAlign: 'center', fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 16 },
 
     bidsSection: { marginTop: 10 },
     sectionTitle: { fontWeight: '800', fontSize: 18, marginBottom: 16 },
-    bidItem: { flexDirection: 'row', justifyContent: 'space-between', padding: 20, borderRadius: 20, marginBottom: 12 },
-    bidder: { fontSize: 13, fontWeight: '500' },
-    bidAmt: { fontWeight: 'bold', fontSize: 18, marginTop: 4 },
-    acceptBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, justifyContent: 'center' },
-    acceptBtnText: { color: '#FFF', fontWeight: 'bold' },
+    bidItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderRadius: 20, marginBottom: 12, borderWidth: 1 },
+    bidderInfo: { flexDirection: 'row', alignItems: 'center' },
+    bidderAvatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    bidderAvatarText: { color: '#FFF', fontWeight: 'bold', fontSize: 18 },
+    bidder: { fontSize: 15, fontWeight: '700' },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+    starIcon: { fontSize: 12, marginRight: 4 },
+    ratingText: { fontSize: 12, fontWeight: '600' },
+    bidAction: { alignItems: 'flex-end' },
+    bidAmt: { fontWeight: '900', fontSize: 22, marginBottom: 8 },
+    acceptBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 14, justifyContent: 'center', elevation: 2 },
+    acceptBtnText: { color: '#FFF', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
 
     bidInputWrapper: { flexDirection: 'row', gap: 10 },
     input: { flex: 1, borderRadius: 16, padding: 16, fontSize: 16 },
     bidSubmitBtn: { paddingHorizontal: 20, borderRadius: 16, justifyContent: 'center' },
-    btnText: { color: '#FFF', fontWeight: 'bold' }
+    btnText: { color: '#FFF', fontWeight: 'bold' },
+
+    bidActionContainer: { alignItems: 'flex-end', justifyContent: 'center' },
+    serverAcceptedBox: { alignItems: 'center' },
+    serverAcceptedText: { fontSize: 12, fontWeight: '700', color: '#10B981', marginBottom: 6 },
+    waitingText: { fontSize: 12, fontWeight: '600', fontStyle: 'italic' },
+    actionBtnRow: { flexDirection: 'row', gap: 8 },
+    actionBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, elevation: 2 },
+    actionBtnText: { color: '#FFF', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
 });

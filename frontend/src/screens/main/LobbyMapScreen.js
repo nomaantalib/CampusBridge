@@ -66,6 +66,7 @@ export default function LobbyMapScreen({ navigation }) {
         };
 
         init();
+        handleLocateMe();
 
         return () => {
             isMounted = false;

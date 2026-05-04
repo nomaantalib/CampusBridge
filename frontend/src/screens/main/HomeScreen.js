@@ -308,7 +308,7 @@ export default function HomeScreen({ navigation }) {
           </View>
           <Text style={[styles.reqDesc, { color: theme.colors.textDim }]}>"{incomingRequest.description}"</Text>
           <Text style={[styles.reqFare, { color: theme.colors.success }]}>
-            Offered: ₹{incomingRequest.offeredFare}
+            {user?.role === 'Server' || user?.role === 'User' ? `You Earn: ₹${(incomingRequest.offeredFare * 0.7).toFixed(0)}` : `Offered: ₹${incomingRequest.offeredFare}`}
           </Text>
           <View style={styles.reqActions}>
             <TouchableOpacity

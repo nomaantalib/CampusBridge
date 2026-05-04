@@ -40,14 +40,34 @@ export default function CreateTaskScreen({ navigation }) {
 
     const handleSubmit = async () => {
         if (!description || !fare) return Alert.alert('Required', 'Tell us what you need and what you offer!');
-        if (Number(fare) < category.min) return Alert.alert('Too Low!', `Minimum for ${category.name} is ₹${category.min}`);
+        const offeredFare = Number(fare);
+        if (offeredFare < category.min) return Alert.alert('Too Low!', `Minimum for ${category.name} is ₹${category.min}`);
 
         setIsLoading(true);
         try {
+            // 1. Fetch live balance to prevent fake requests
+            const meRes = await api.get('/auth/me');
+            const currentUser = meRes.data.data || meRes.data.user;
+            const currentBalance = currentUser?.walletBalance || 0;
+
+            if (currentBalance < offeredFare) {
+                setIsLoading(false);
+                Alert.alert(
+                    'Insufficient Funds', 
+                    `You need at least ₹${offeredFare} in your wallet to request this service. Current balance: ₹${currentBalance}`,
+                    [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Add Money', onPress: () => navigation.navigate('Wallet') }
+                    ]
+                );
+                return;
+            }
+
+            // 2. Broadcast task if balance is sufficient
             const res = await api.post('/tasks', {
                 category: category.name,
                 description,
-                offeredFare: Number(fare),
+                offeredFare: offeredFare,
             });
             if (res.data.success) {
                 Alert.alert('Success', 'Broadcasted to all online users! 📡');

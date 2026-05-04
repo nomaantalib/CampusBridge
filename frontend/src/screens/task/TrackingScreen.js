@@ -9,7 +9,8 @@ import {
     Image,
     Alert,
     Dimensions,
-    Animated as RNAnimated
+    Animated as RNAnimated,
+    Linking
 } from 'react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -85,6 +86,17 @@ export default function TrackingScreen({ route, navigation }) {
         } catch (e) { console.error(e); }
     };
 
+    const openDirections = () => {
+        const currentUserId = user?.id || user?._id;
+        const targetLoc = (currentUserId === task.requesterId) ? serverLoc : requesterLoc;
+        if (targetLoc && targetLoc.latitude && targetLoc.longitude) {
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${targetLoc.latitude},${targetLoc.longitude}`;
+            Linking.openURL(url);
+        } else {
+            Alert.alert("Location Unavailable", "Waiting for the other party's location update.");
+        }
+    };
+
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
             <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
@@ -154,26 +166,61 @@ export default function TrackingScreen({ route, navigation }) {
             </MapView>
 
             <View style={styles.overlay}>
-                <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                    
+                    {/* Progress Timeline */}
+                    <View style={styles.timelineContainer}>
+                        {[
+                            { label: 'Requested', status: ['Open', 'Negotiating', 'Accepted', 'InTransit', 'Completed'] },
+                            { label: 'Accepted', status: ['Accepted', 'InTransit', 'Completed'] },
+                            { label: 'On Way', status: ['InTransit', 'Completed'] },
+                            { label: 'Delivered', status: ['Completed'] }
+                        ].map((step, idx, arr) => (
+                            <React.Fragment key={idx}>
+                                <View style={styles.timelineStep}>
+                                    <View style={[styles.stepDot, { backgroundColor: step.status.includes(task.status) ? theme.colors.success : theme.colors.textMuted }]} />
+                                    <Text style={[styles.stepLabel, { color: step.status.includes(task.status) ? theme.colors.text : theme.colors.textDim }]}>{step.label}</Text>
+                                </View>
+                                {idx < arr.length - 1 && <View style={[styles.stepLine, { backgroundColor: arr[idx+1].status.includes(task.status) ? theme.colors.success : theme.colors.textMuted }]} />}
+                            </React.Fragment>
+                        ))}
+                    </View>
+
                     <View style={styles.header}>
                         <View style={[styles.statusIndicator, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)' }]}>
                              <View style={[styles.liveDot, { backgroundColor: theme.colors.success }]} />
-                             <Text style={[styles.liveText, { color: theme.colors.success }]}>LIVE TRACKING</Text>
+                             <Text style={[styles.liveText, { color: theme.colors.success }]}>LIVE</Text>
                         </View>
-                        <Text style={[styles.category, { color: theme.colors.accent }]}>{task.category}</Text>
+                        <Text style={[styles.category, { color: theme.colors.accent }]}>{task.category} • ₹{task.finalFare || task.offeredFare}</Text>
                     </View>
                     
-                    <Text style={[styles.desc, { color: theme.colors.text }]} numberOfLines={1}>{task.description}</Text>
+                    <Text style={[styles.desc, { color: theme.colors.text }]}>{task.description}</Text>
                     
                     <View style={[styles.footer, { borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
                         <View style={styles.partnerInfo}>
-                             <Text style={[styles.partnerLabel, { color: theme.colors.textMuted }]}>Delivery Partner</Text>
-                             <Text style={[styles.partnerName, { color: theme.colors.text }]}>Server #{task.serverId?.slice(-4) || '....'}</Text>
+                             <Text style={[styles.partnerLabel, { color: theme.colors.textMuted }]}>{user.id === task.requesterId ? 'Delivery Partner' : 'Customer'}</Text>
+                             <Text style={[styles.partnerName, { color: theme.colors.text }]}>
+                                {user.id === task.requesterId ? `Server #${task.serverId?.slice(-4)}` : `User #${task.requesterId?.slice(-4)}`}
+                             </Text>
                         </View>
-                        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]} onPress={() => navigation.goBack()}>
-                            <Text style={[styles.closeBtnText, { color: theme.colors.textMuted }]}>Return</Text>
-                        </TouchableOpacity>
+                        
+                        <View style={styles.contactActions}>
+                            <TouchableOpacity style={[styles.contactBtn, { backgroundColor: theme.colors.primary }]} onPress={() => Alert.alert("Chat Feature", "Opening secure chat channel...")}>
+                                <Text style={styles.contactBtnIcon}>💬</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.contactBtn, { backgroundColor: theme.colors.success }]} onPress={() => Linking.openURL(`tel:9999999999`)}>
+                                <Text style={styles.contactBtnIcon}>📞</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
+
+                    <TouchableOpacity style={[styles.directionsBtn, { backgroundColor: theme.colors.accent }]} onPress={openDirections}>
+                        <Text style={styles.directionsBtnText}>GET GOOGLE MAPS DIRECTIONS 🧭</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.returnBtn}>
+                        <Text style={[styles.returnBtnText, { color: theme.colors.textMuted }]}>Return to Bidding</Text>
+                    </TouchableOpacity>
                 </View>
             </View>
         </View>
@@ -220,6 +267,19 @@ const styles = StyleSheet.create({
     partnerLabel: { fontSize: 11, marginBottom: 2 },
     partnerName: { fontSize: 14, fontWeight: 'bold' },
     
-    closeBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
-    closeBtnText: { fontSize: 13, fontWeight: 'bold' }
+    contactActions: { flexDirection: 'row', gap: 12 },
+    contactBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 4 },
+    contactBtnIcon: { fontSize: 18 },
+    
+    directionsBtn: { marginTop: 24, padding: 18, borderRadius: 16, alignItems: 'center', elevation: 4 },
+    directionsBtnText: { color: '#FFF', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
+    
+    returnBtn: { marginTop: 16, alignItems: 'center' },
+    returnBtnText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
+
+    timelineContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24, paddingHorizontal: 10 },
+    timelineStep: { alignItems: 'center' },
+    stepDot: { width: 12, height: 12, borderRadius: 6, marginBottom: 4 },
+    stepLabel: { fontSize: 10, fontWeight: '800' },
+    stepLine: { flex: 1, height: 2, marginHorizontal: 4, borderRadius: 1 }
 });

@@ -10,6 +10,16 @@ const bidSchema = new mongoose.Schema({
         type: Number,
         required: true,
     },
+    lastOfferBy: {
+        type: String,
+        enum: ['Server', 'Requester'],
+        default: 'Server',
+    },
+    status: {
+        type: String,
+        enum: ['Pending', 'AcceptedByServer', 'Rejected'],
+        default: 'Pending',
+    },
     timestamp: {
         type: Date,
         default: Date.now,

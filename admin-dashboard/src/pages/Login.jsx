@@ -1,12 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Lock, Mail } from 'lucide-react';
 
 const Login = ({ onLogin }) => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [email, setEmail] = useState(import.meta.env.VITE_ADMIN_EMAIL || '');
+    const [password, setPassword] = useState(import.meta.env.VITE_ADMIN_PASSWORD || '');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        const autoLogin = async () => {
+            if (sessionStorage.getItem('explicitLogout') === 'true') {
+                return; // Skip auto-login if user manually logged out
+            }
+            if (import.meta.env.VITE_ADMIN_EMAIL && import.meta.env.VITE_ADMIN_PASSWORD) {
+                setLoading(true);
+                try {
+                    const { data } = await axios.post('http://127.0.0.1:5000/api/auth/login', { 
+                        email: import.meta.env.VITE_ADMIN_EMAIL, 
+                        password: import.meta.env.VITE_ADMIN_PASSWORD 
+                    });
+                    
+                    if (data.user.role === 'Admin') {
+                        localStorage.setItem('adminToken', data.accessToken);
+                        localStorage.setItem('adminUser', JSON.stringify(data.user));
+                        onLogin();
+                    }
+                } catch (err) {
+                    console.error('Auto-login failed', err);
+                    setError(err.response?.data?.message || err.message || 'Auto-login failed');
+                } finally {
+                    setLoading(false);
+                }
+            }
+        };
+        autoLogin();
+    }, [onLogin]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -20,6 +49,7 @@ const Login = ({ onLogin }) => {
                 throw new Error('Access Denied: Administrative credentials required.');
             }
 
+            sessionStorage.removeItem('explicitLogout');
             localStorage.setItem('adminToken', data.accessToken);
             localStorage.setItem('adminUser', JSON.stringify(data.user));
             onLogin();
@@ -51,6 +81,7 @@ const Login = ({ onLogin }) => {
                                 style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.5rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1' }}
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
+                                autoComplete="username"
                                 required
                             />
                         </div>
@@ -66,6 +97,7 @@ const Login = ({ onLogin }) => {
                                 style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.5rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1' }}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
+                                autoComplete="current-password"
                                 required
                             />
                         </div>

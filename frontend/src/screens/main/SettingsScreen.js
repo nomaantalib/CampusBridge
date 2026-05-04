@@ -63,14 +63,20 @@ export default function SettingsScreen({ navigation }) {
     };
 
     const handleLogout = () => {
-        Alert.alert(
-            "Log Out",
-            "Are you sure you want to log out of CampusBridge?",
-            [
-                { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: logout }
-            ]
-        );
+        if (Platform.OS === 'web') {
+            if (window.confirm("Are you sure you want to log out of CampusBridge?")) {
+                logout();
+            }
+        } else {
+            Alert.alert(
+                "Log Out",
+                "Are you sure you want to log out of CampusBridge?",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Logout", style: "destructive", onPress: logout }
+                ]
+            );
+        }
     };
 
     const SettingRow = ({ icon, title, subtitle, value, onToggle, type = 'toggle', onPress }) => (

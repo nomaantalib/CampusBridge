@@ -23,7 +23,7 @@ import SupportSystem from './pages/SupportSystem';
 import ReviewsFeedback from './pages/ReviewsFeedback';
 import Login from './pages/Login';
 
-const Layout = ({ children }) => (
+const Layout = ({ children, onLogout }) => (
   <div className="admin-layout">
     <aside className="sidebar">
       <div style={{ marginBottom: '2rem' }}>
@@ -42,7 +42,11 @@ const Layout = ({ children }) => (
         <Link to="/reviews" className="nav-item"><Star size={20} style={{ marginRight: 10 }} /> Reviews</Link>
       </nav>
 
-      <button className="nav-item" style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer' }} onClick={() => localStorage.clear()}>
+      <button className="nav-item" style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer' }} onClick={() => {
+        localStorage.clear();
+        sessionStorage.setItem('explicitLogout', 'true');
+        if (onLogout) onLogout();
+      }}>
         <LogOut size={20} style={{ marginRight: 10 }} /> Logout
       </button>
     </aside>
@@ -59,11 +63,11 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<Login onLogin={() => setIsAuthenticated(true)} />} />
+        <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login onLogin={() => setIsAuthenticated(true)} />} />
         
         <Route path="/*" element={
           isAuthenticated ? (
-            <Layout>
+            <Layout onLogout={() => setIsAuthenticated(false)}>
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/users" element={<UserManagement />} />

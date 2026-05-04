@@ -4,7 +4,7 @@ const Task = require('../models/Task');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const mongoose = require('mongoose');
-const { createTaskSchema, placeBidSchema, acceptBidSchema } = require('../utils/validation');
+const { createTaskSchema, placeBidSchema, acceptBidSchema, counterBidSchema } = require('../utils/validation');
 
 const router = express.Router();
 
@@ -120,7 +120,7 @@ router.post('/', authorize('Requester', 'Admin', 'User'), async (req, res, next)
     }
 });
 
-// @desc    Place a bid on a task
+// @desc    Place a bid or counter-offer on a task (Server side)
 // @route   POST /api/tasks/bid
 // @access  Private (Server)
 router.post('/bid', authorize('Server', 'Admin', 'User'), async (req, res, next) => {
@@ -136,25 +136,111 @@ router.post('/bid', authorize('Server', 'Admin', 'User'), async (req, res, next)
             return res.status(400).json({ success: false, message: 'Task is no longer accepting bids' });
         }
 
-        const bid = {
-            serverId: req.user.id,
-            amount,
-            timestamp: new Date()
-        };
+        let existingBid = task.bids.find(b => b.serverId.toString() === req.user.id);
+        let bidData;
 
-        task.bids.push(bid);
+        if (existingBid) {
+            existingBid.amount = amount;
+            existingBid.lastOfferBy = 'Server';
+            existingBid.status = 'Pending';
+            existingBid.timestamp = new Date();
+            bidData = existingBid;
+        } else {
+            bidData = {
+                serverId: req.user.id,
+                amount,
+                lastOfferBy: 'Server',
+                status: 'Pending',
+                timestamp: new Date()
+            };
+            task.bids.push(bidData);
+        }
+
         task.status = 'Negotiating';
         await task.save();
 
         const io = req.app.get('io');
         if (task.requesterId) {
-            io.to(task.requesterId.toString()).emit('new-bid', { taskId: task._id, bid });
+            io.to(task.requesterId.toString()).emit('new-bid', { taskId: task._id, bid: bidData });
         }
         res.status(201).json({ success: true, data: task });
     } catch (err) {
         next(err);
     }
 });
+
+// @desc    Counter a specific bid (Requester side)
+// @route   POST /api/tasks/bid/counter
+// @access  Private (Requester)
+router.post('/bid/counter', authorize('Requester', 'Admin', 'User'), async (req, res, next) => {
+    try {
+        const { error } = counterBidSchema.validate(req.body);
+        if (error) return res.status(400).json({ success: false, message: error.details[0].message });
+
+        const { taskId, bidId, amount } = req.body;
+        let task = await Task.findById(taskId);
+        if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+
+        if (task.requesterId?.toString() !== req.user.id && req.user.role !== 'Admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        if (task.status !== 'Open' && task.status !== 'Negotiating') {
+            return res.status(400).json({ success: false, message: 'Task is no longer accepting bids' });
+        }
+
+        const bid = task.bids.id(bidId);
+        if (!bid) return res.status(404).json({ success: false, message: 'Bid not found' });
+
+        bid.amount = amount;
+        bid.lastOfferBy = 'Requester';
+        bid.status = 'Pending';
+        bid.timestamp = new Date();
+        
+        await task.save();
+
+        const io = req.app.get('io');
+        io.to(bid.serverId.toString()).emit('new-bid', { taskId: task._id, bid });
+        res.status(200).json({ success: true, data: task });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// @desc    Accept a Requester's counter-offer (Server side)
+// @route   POST /api/tasks/bid/accept-counter
+// @access  Private (Server)
+router.post('/bid/accept-counter', authorize('Server', 'Admin', 'User'), async (req, res, next) => {
+    try {
+        const { error } = acceptBidSchema.validate(req.body);
+        if (error) return res.status(400).json({ success: false, message: error.details[0].message });
+
+        const { taskId, bidId } = req.body;
+        let task = await Task.findById(taskId);
+        if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+
+        const bid = task.bids.id(bidId);
+        if (!bid) return res.status(404).json({ success: false, message: 'Bid not found' });
+
+        if (bid.serverId.toString() !== req.user.id && req.user.role !== 'Admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        bid.status = 'AcceptedByServer';
+        bid.timestamp = new Date();
+        
+        await task.save();
+
+        const io = req.app.get('io');
+        if (task.requesterId) {
+            io.to(task.requesterId.toString()).emit('new-bid', { taskId: task._id, bid });
+        }
+        res.status(200).json({ success: true, data: task });
+    } catch (err) {
+        next(err);
+    }
+});
+
 
 // @desc    Accept a bid
 // @route   POST /api/tasks/accept
@@ -278,7 +364,7 @@ router.post('/verify-otp', authorize('Server', 'Admin', 'User'), async (req, res
             if (!existingCredit) {
                 const server = await User.findById(task.serverId).session(session);
                 
-                const commissionRate = 0.20;
+                const commissionRate = 0.30;
                 const commission = task.finalFare * commissionRate;
                 const finalAmount = task.finalFare - commission;
 

@@ -55,10 +55,17 @@ const acceptBidSchema = Joi.object({
     bidId:  Joi.string().required(),
 });
 
+const counterBidSchema = Joi.object({
+    taskId: Joi.string().required(),
+    bidId:  Joi.string().required(),
+    amount: Joi.number().min(1).required(),
+});
+
 module.exports = {
     signupSchema,
     loginSchema,
     createTaskSchema,
     placeBidSchema,
     acceptBidSchema,
+    counterBidSchema,
 };

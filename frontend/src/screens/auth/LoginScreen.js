@@ -27,16 +27,13 @@ export default function LoginScreen({ navigation }) {
   const { theme, isDark } = useAppTheme();
 
 /* Google Auth Request - TEMPORARILY DISABLED TO PREVENT CRASH */
-  /* To enable: Set valid client IDs in Google Cloud Console and uncomment below */
-  const [request, response, promptAsync] = [null, null, () => Alert.alert("Setup Required", "Please configure Google Client IDs in LoginScreen.js to enable social login.")];
+  // const [request, response, promptAsync] = [null, null, () => Alert.alert("Setup Required", "Please configure Google Client IDs in LoginScreen.js to enable social login.")];
 
-  /*
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: "YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com",
-    iosClientId: "YOUR_IOS_CLIENT_ID.apps.googleusercontent.com",
-    webClientId: "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com",
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com",
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "YOUR_IOS_CLIENT_ID.apps.googleusercontent.com",
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com",
   });
-  */
 
   useEffect(() => {
     if (response?.type === 'success') {
