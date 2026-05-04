@@ -50,7 +50,8 @@ router.get('/', async (req, res, next) => {
     try {
         const tasks = await Task.find({
             campusId: req.user.campusId,
-            status: 'Open'
+            status: 'Open',
+            requesterId: { $ne: req.user.id }
         }).sort('-createdAt');
         res.status(200).json({ success: true, count: tasks.length, data: tasks });
     } catch (err) {
@@ -137,31 +138,32 @@ router.post('/bid', authorize('Server', 'Admin', 'User'), async (req, res, next)
         }
 
         let existingBid = task.bids.find(b => b.serverId.toString() === req.user.id);
-        let bidData;
+        let savedBid;
 
         if (existingBid) {
             existingBid.amount = amount;
             existingBid.lastOfferBy = 'Server';
             existingBid.status = 'Pending';
             existingBid.timestamp = new Date();
-            bidData = existingBid;
         } else {
-            bidData = {
+            task.bids.push({
                 serverId: req.user.id,
                 amount,
                 lastOfferBy: 'Server',
                 status: 'Pending',
                 timestamp: new Date()
-            };
-            task.bids.push(bidData);
+            });
         }
 
         task.status = 'Negotiating';
         await task.save();
 
+        // Always use the saved subdoc so _id is guaranteed to be present
+        savedBid = task.bids.find(b => b.serverId.toString() === req.user.id);
+
         const io = req.app.get('io');
         if (task.requesterId) {
-            io.to(task.requesterId.toString()).emit('new-bid', { taskId: task._id, bid: bidData });
+            io.to(task.requesterId.toString()).emit('new-bid', { taskId: task._id, bid: savedBid });
         }
         res.status(201).json({ success: true, data: task });
     } catch (err) {
@@ -268,7 +270,8 @@ router.post('/accept', authorize('Requester', 'Admin', 'User'), async (req, res,
         try {
             await holdEscrow(req.user.id, task._id, bid.amount);
         } catch (paymentErr) {
-            return res.status(400).json({ success: false, message: paymentErr.message });
+            console.error('[Escrow Error]:', paymentErr.message, 'User:', req.user.id, 'Task:', task._id);
+            return res.status(400).json({ success: false, message: `Payment failed: ${paymentErr.message}` });
         }
 
         // Atomically update task to prevent race conditions

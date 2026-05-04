@@ -33,7 +33,7 @@ const FUN_MESSAGES = [
 ];
 
 export default function BiddingScreen({ route, navigation }) {
-    const { task: initialTask } = route.params;
+    const { task: initialTask, autoFocusBid } = route.params;
     const { user } = useAuth();
     const { theme, isDark } = useAppTheme();
     const [task, setTask] = useState(initialTask);
@@ -42,7 +42,14 @@ export default function BiddingScreen({ route, navigation }) {
     const [otp, setOtp] = useState('');
     const [selectBidForPayment, setSelectBidForPayment] = useState(null);
 
+    const bidInputRef = useRef(null);
     const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        if (autoFocusBid && bidInputRef.current) {
+            setTimeout(() => bidInputRef.current.focus(), 500);
+        }
+    }, []);
 
     useEffect(() => {
         if (task.status === 'Accepted' || task.status === 'InTransit') {
@@ -69,12 +76,18 @@ export default function BiddingScreen({ route, navigation }) {
             socket.joinTask(task._id);
             
             socket.onNewBid(data => {
-                if (data.taskId === task._id) {
-                    setTask(prev => ({ 
-                        ...prev, 
-                        bids: [...(prev.bids || []), data.bid], 
-                        status: 'Negotiating' 
-                    }));
+                const incomingTaskId = data.taskId?.toString();
+                const currentTaskId = task._id?.toString();
+                if (incomingTaskId === currentTaskId) {
+                    setTask(prev => {
+                        const existingIdx = (prev.bids || []).findIndex(
+                            b => b._id?.toString() === data.bid._id?.toString()
+                        );
+                        const updatedBids = existingIdx >= 0
+                            ? prev.bids.map((b, i) => i === existingIdx ? data.bid : b)
+                            : [...(prev.bids || []), data.bid];
+                        return { ...prev, bids: updatedBids, status: 'Negotiating' };
+                    });
                 }
             });
 
@@ -130,9 +143,10 @@ export default function BiddingScreen({ route, navigation }) {
         handleAction('/tasks/bid', { taskId: task._id, amount });
     };
 
-    const isRequester = user?.id === task.requesterId;
-    const isServer = user?.role === 'Server' || user?.role === 'User'; // Allow User role to bid as well if they act as server
-    const isAssigned = user?.id === task.serverId;
+    const currentUserId = user?.id || user?._id;
+    const isRequester = currentUserId?.toString() === task.requesterId?.toString();
+    const isServer = !isRequester; 
+    const isAssigned = currentUserId?.toString() === task.serverId?.toString();
 
     const getStatusColor = (s) => {
         switch(s) {
@@ -186,7 +200,7 @@ export default function BiddingScreen({ route, navigation }) {
                             <View style={styles.payActions}>
                                 <TouchableOpacity 
                                     style={[styles.payConfirmBtn, { backgroundColor: theme.colors.primary }]} 
-                                    onPress={() => handleAction('/tasks/accept', { taskId: task._id, bidId: selectBidForPayment._id })}
+                                    onPress={() => handleAction('/tasks/accept', { taskId: task._id?.toString(), bidId: selectBidForPayment._id?.toString() })}
                                 >
                                     {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.payConfirmText}>YES, PROCEED ✅</Text>}
                                 </TouchableOpacity>
@@ -209,8 +223,8 @@ export default function BiddingScreen({ route, navigation }) {
                     </View>
                 )}
 
-                {isServer && !isAssigned && ['Open', 'Negotiating'].includes(task.status) && (() => {
-                    const myBid = task.bids?.find(b => b.serverId === user.id || b.serverId?._id === user.id);
+                {!isRequester && !isAssigned && ['Open', 'Negotiating'].includes(task.status) && (() => {
+                    const myBid = task.bids?.find(b => (b.serverId?.toString() || b.serverId?._id?.toString()) === currentUserId?.toString());
                     const isRequesterCountered = myBid && myBid.lastOfferBy === 'Requester';
 
                     return (
@@ -244,6 +258,7 @@ export default function BiddingScreen({ route, navigation }) {
 
                             <View style={styles.bidInputWrapper}>
                                 <TextInput 
+                                    ref={bidInputRef}
                                     style={[styles.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', color: theme.colors.text }]} 
                                     keyboardType="numeric" 
                                     value={bidAmount} 
